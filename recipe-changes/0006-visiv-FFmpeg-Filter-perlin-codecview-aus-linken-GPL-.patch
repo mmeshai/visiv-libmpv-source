@@ -1,0 +1,29 @@
+From 500b5831690b61662f4ab07a1073ffeec7209a17 Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Wed, 30 Sep 2026 21:46:26 +0200
+Subject: [PATCH 6/7] visiv: FFmpeg-Filter perlin/codecview aus (linken
+ GPL-Dateien trotz --disable-gpl)
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ packages/ffmpeg.cmake | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index 6f5b301..ede8b5c 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -52,6 +52,10 @@ ExternalProject_Add(ffmpeg
+         --enable-muxer=mp4
+         --enable-muxer=mov
+         --enable-network
++        # Lizenzfehler in FFmpegs configure: diese beiden LGPL-Filter linken GPL-Dateien
++        # (vsrc_perlin -> perlin.c, codecview -> qp_table.c sind GPL-2.0+), ohne von --enable-gpl abzuhaengen
++        --disable-filter=perlin
++        --disable-filter=codecview
+         --enable-openssl
+         --disable-schannel
+         --enable-libxml2
+-- 
+2.43.0
+

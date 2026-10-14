@@ -1,0 +1,70 @@
+From e8e4c3486dac0bffa387852d1d93d79ddf30079d Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Wed, 30 Sep 2026 21:59:35 +0200
+Subject: [PATCH 7/7] visiv: OpenSSL 3.5.9 LTS statt 4.1.0-dev
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ ...001-workaround-missing-flag-in-mingw.patch | 26 -------------------
+ packages/openssl.cmake                        |  6 ++---
+ 2 files changed, 3 insertions(+), 29 deletions(-)
+ delete mode 100644 packages/openssl-0001-workaround-missing-flag-in-mingw.patch
+
+diff --git a/packages/openssl-0001-workaround-missing-flag-in-mingw.patch b/packages/openssl-0001-workaround-missing-flag-in-mingw.patch
+deleted file mode 100644
+index 3fcb482..0000000
+--- a/packages/openssl-0001-workaround-missing-flag-in-mingw.patch
++++ /dev/null
+@@ -1,26 +0,0 @@
+-From 9a711dd77f9d1805e25499c6af9b108bb96ea61a Mon Sep 17 00:00:00 2001
+-From: shinchiro <shinchiro@users.noreply.github.com>
+-Date: Thu, 15 Jan 2026 22:47:58 +0800
+-Subject: [PATCH] Workaround missing flag in MinGW
+-
+----
+- ssl/quic/quic_reactor.c | 3 +++
+- 1 file changed, 3 insertions(+)
+-
+-diff --git a/ssl/quic/quic_reactor.c b/ssl/quic/quic_reactor.c
+-index a754f285b..a420018e7 100644
+---- a/ssl/quic/quic_reactor.c
+-+++ b/ssl/quic/quic_reactor.c
+-@@ -15,6 +15,9 @@
+- #include <winsock2.h>
+- #include <mstcpip.h>
+- #include <mswsock.h>
+-+#if defined(__MINGW32__) && !defined(SIO_UDP_NETRESET)
+-+#define SIO_UDP_NETRESET _WSAIOW(IOC_VENDOR, 15)
+-+#endif
+- #endif
+- 
+- /*
+--- 
+-2.49.0
+-
+diff --git a/packages/openssl.cmake b/packages/openssl.cmake
+index 7510e50..1fedc52 100644
+--- a/packages/openssl.cmake
++++ b/packages/openssl.cmake
+@@ -1,3 +1,5 @@
++# visiv: OpenSSL 3.5 LTS (Release-Tag) statt shinchiros Entwicklungsstand 4.1.0-dev.
++# Der MinGW-Patch (SIO_UDP_NETRESET) ist in 3.5.9 bereits enthalten und entfaellt.
+ ExternalProject_Add(openssl
+     DEPENDS
+         zlib
+@@ -7,11 +9,9 @@ ExternalProject_Add(openssl
+     SOURCE_DIR ${SOURCE_LOCATION}
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !test"
+-    GIT_REMOTE_NAME origin
+-    GIT_RESET d8bf6cdd4849925c30e4f1911c7acb49cb34b702
++    GIT_TAG openssl-3.5.9
+     GIT_SUBMODULES ""
+     UPDATE_COMMAND ""
+-    PATCH_COMMAND ${EXEC} git am --3way ${CMAKE_CURRENT_SOURCE_DIR}/openssl-*.patch
+     CONFIGURE_COMMAND ${EXEC} mkdir -p apps/include
+     COMMAND ${EXEC} CONF=1 <SOURCE_DIR>/Configure
+         --cross-compile-prefix=${TARGET_ARCH}-
+-- 
+2.43.0
+

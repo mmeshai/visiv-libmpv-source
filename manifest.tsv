@@ -1,0 +1,39 @@
+paket	url	commit	datei	dateien_checkout	dateien_archiv	muster
+amf-headers	https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git	8c648005e07d4309033282bfd9947df2c7e76104	sources/amf-headers-8c648005e07d.tar.xz	57	57	amf/public/include
+angle-headers	https://github.com/google/angle.git	0cb8023c01f92b29f3738ea7472d06f8f059ed84	sources/angle-headers-0cb8023c01f9.tar.xz	7	7	include/EGL include/KHR
+brotli	https://github.com/google/brotli.git	42a2ed4355bc6287da6bb6319f090b499cba4550	sources/brotli-42a2ed4355bc.tar.xz	220	220	. :(exclude,glob)**/tests :(exclude,glob)**/tests/** :(exclude,glob)**/js :(exclude,glob)**/js/** :(exclude,glob)**/java :(exclude,glob)**/java/** :(exclude,glob)**/research :(exclude,glob)**/research/**
+bzip2	https://gitlab.com/bzip2/bzip2.git	66c46b8c9436613fd81bc5d03f63a61933a4dcc3	sources/bzip2-66c46b8c9436.tar.xz	79	78	.
+cppwinrt	https://github.com/microsoft/cppwinrt.git	856eaff70a48d6b053c2ad3dffec15b81ca34b10	sources/cppwinrt-856eaff70a48.tar.xz	859	859	.
+dav1d	https://code.videolan.org/videolan/dav1d.git	7f12cf23560430c02a83e67bb68eec74d93ce5fd	sources/dav1d-7f12cf235604.tar.xz	359	359	.
+fast_float	https://github.com/fastfloat/fast_float.git	9498cc361e081f46c85c936a0677e271c1930a45	sources/fast_float-9498cc361e08.tar.xz	120	120	.
+ffmpeg	https://github.com/FFmpeg/FFmpeg.git	29e619e767cde9045a75c29bc9a8278ae7b3a98b	sources/ffmpeg-29e619e767cd.tar.xz	7422	7422	. :(exclude,glob)**/tests/ref/fate :(exclude,glob)**/tests/ref/fate/**
+freetype2	https://github.com/freetype/freetype.git	c30faba496fdb36d40e290b0b9818fb57d68476a	sources/freetype2-c30faba496fd.tar.xz	764	763	.
+fribidi	https://github.com/fribidi/fribidi.git	24f15eee832eafa5d63319b666d50e488668ce31	sources/fribidi-24f15eee832e.tar.xz	108	108	. :(exclude,glob)**/test :(exclude,glob)**/test/**
+glad	https://github.com/Dav1dde/glad.git	0a7cf1af9e25e02821587bd4095807fc90b6426a	sources/glad-0a7cf1af9e25.tar.xz	245	245	.
+glslang	https://github.com/KhronosGroup/glslang.git	c0e1dbb69ac53f77102d813844f235fbf00776f3	sources/glslang-c0e1dbb69ac5.tar.xz	248	248	. :(exclude,glob)**/Test :(exclude,glob)**/Test/**
+graphengine	https://github.com/sekrit-twc/graphengine.git	91c6af4c795c5396d8b974f24b4d2e2ecca04e2d	sources/graphengine-91c6af4c795c.tar.xz	54	53	.
+harfbuzz	https://github.com/harfbuzz/harfbuzz.git	82ec48207b446afcf787a86d2ca4f768685e68df	sources/harfbuzz-82ec48207b44.tar.xz	794	794	. :(exclude,glob)**/test :(exclude,glob)**/test/**
+lcms2	https://github.com/mm2/Little-CMS.git	35cef8775e0ab46f0dda0b46aae1e69d27524432	sources/lcms2-35cef8775e0a.tar.xz	339	339	.
+libass	https://github.com/libass/libass.git	f61db567e6593df3470e91594bcd4ad2d0473aff	sources/libass-f61db567e659.tar.xz	136	136	.
+libjpeg	https://github.com/libjpeg-turbo/libjpeg-turbo.git	03c9a9d795c08ab06d625e5fc3bf0ae8b26f9652	sources/libjpeg-03c9a9d795c0.tar.xz	622	622	.
+libplacebo	https://github.com/haasn/libplacebo.git	cee9b076f2c63104ccfd497fa79c39a867293ec4	sources/libplacebo-cee9b076f2c6.tar.xz	248	242	.
+libpng	https://github.com/glennrp/libpng.git	1f1a501346800e9660d3039a6efbf90b685b5d97	sources/libpng-1f1a50134680.tar.xz	614	614	.
+libunibreak	https://github.com/adah1972/libunibreak.git	28a2756b864c343f438cd22537d49d394d4666a5	sources/libunibreak-28a2756b864c.tar.xz	67	67	.
+libvpl	https://github.com/intel/libvpl.git	674d015bcb294bc39fa276e99a652ea045423e82	sources/libvpl-674d015bcb29.tar.xz	659	659	.
+libxml2	https://github.com/GNOME/libxml2.git	c43dc98d27ac315a48d93dbd399c6c22cf7125b1	sources/libxml2-c43dc98d27ac.tar.xz	439	439	. :(exclude,glob)**/result :(exclude,glob)**/result/** :(exclude,glob)**/test :(exclude,glob)**/test/**
+libzimg	https://github.com/sekrit-twc/zimg.git	67e0603271c080e22c8429856dd4a8a56587e61e	sources/libzimg-67e0603271c0.tar.xz	246	244	.
+mingw-w64	https://github.com/mingw-w64/mingw-w64.git	49be363ce161977c8594534df488e298e775b8b2	sources/mingw-w64-49be363ce161.tar.xz	6992	6992	.
+mpv	https://github.com/mpv-player/mpv.git	41f6a645068483470267271e1d09966ca3b9f413	sources/mpv-41f6a6450684.tar.xz	832	832	.
+mujs	https://codeberg.org/ccxvii/mujs.git	8a32c397b28fe45747ac4e9e4f3dca049825eda7	sources/mujs-8a32c397b28f.tar.xz	55	55	.
+nvcodec-headers	https://github.com/FFmpeg/nv-codec-headers.git	eddcea9e27f6b772057c9b3f87de2cc1737faffc	sources/nvcodec-headers-eddcea9e27f6.tar.xz	9	9	.
+openssl	https://github.com/openssl/openssl.git	45e844fa2a14ec92d146bd8f5778ac130b6625fb	sources/openssl-45e844fa2a14.tar.xz	3819	3808	. :(exclude,glob)**/test :(exclude,glob)**/test/**
+shaderc	https://github.com/google/shaderc.git	a8abeb0b8a9d4b11e3d59ca9f4550b8213e733ab	sources/shaderc-a8abeb0b8a9d.tar.xz	225	225	.
+spirv-cross	https://github.com/KhronosGroup/SPIRV-Cross.git	aa217aeb6c9f0ace7a0ab233b28807edf45eb165	sources/spirv-cross-aa217aeb6c9f.tar.xz	4871	4871	.
+spirv-headers	https://github.com/KhronosGroup/SPIRV-Headers.git	cb42dec3830d3ac67fa449ecdc0c0f73d5e74498	sources/spirv-headers-cb42dec3830d.tar.xz	121	121	.
+spirv-tools	https://github.com/KhronosGroup/SPIRV-Tools.git	7c6f020efc756dff4c6fa558316c4cabbdf045f6	sources/spirv-tools-7c6f020efc75.tar.xz	1753	1753	.
+uchardet	https://gitlab.freedesktop.org/uchardet/uchardet.git	06029ec3340cdf6bf9a6a537dafb3f39eda0560e	sources/uchardet-06029ec3340c.tar.xz	400	400	.
+vulkan-header	https://github.com/KhronosGroup/Vulkan-Headers.git	3c65a01745e4a1134d32b9c2c456472212dba16d	sources/vulkan-header-3c65a01745e4.tar.xz	89	89	.
+xxhash	https://github.com/Cyan4973/xxHash.git	680bf463fa1ca0461b9a7c2dab7556e1f54cf4cf	sources/xxhash-680bf463fa1c.tar.xz	101	101	.
+zlib	https://github.com/zlib-ng/zlib-ng.git	a7f510904e238e55386769a475fef1c100d9d6c1	sources/zlib-a7f510904e23.tar.xz	434	434	.
+zstd	https://github.com/facebook/zstd.git	01b7154f1172432f8abe9b3bb9909e14a1176b7d	sources/zstd-01b7154f1172.tar.xz	660	660	.
+libiconv	https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz	-	sources/libiconv-1.18.tar.gz	-	-	-

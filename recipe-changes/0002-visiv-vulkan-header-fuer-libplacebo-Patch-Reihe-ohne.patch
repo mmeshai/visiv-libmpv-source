@@ -1,0 +1,279 @@
+From 434aa36bb4f322941dcb622e585346f650355aba Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Wed, 30 Sep 2026 21:16:15 +0200
+Subject: [PATCH 2/7] visiv: vulkan-header fuer libplacebo, Patch-Reihe ohne
+ NVIDIA-HDR-Formatpatch, refqueue-Abhaengigkeit
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ packages/CMakeLists.txt                       |   1 +
+ packages/libplacebo.cmake                     |   2 +
+ ...D11-BindFlags-for-all-hw-frame-pool.patch} |   0
+ ...fqueue-add-mp-refqueue-output-fields.patch |  44 ++++++
+ ...-0005-vf-d3d11vpp-fix-deinterlacing.patch} |   0
+ ...d11vpp-print-supported-custom-rates.patch} |   0
+ ...3d11vpp-use-half-rate-for-IVTC-mode.patch} |   0
+ ...11VideoContext1-interface-for-setti.patch} |   0
+ ...v-0009-vf-d3d11vpp-add-dots-to-logs.patch} |   0
+ ...t-output-format-for-NVIDIA-RTX-Video.patch | 130 ------------------
+ ...GL-EXT-device-query-availability-ch.patch} |   0
+ 11 files changed, 47 insertions(+), 130 deletions(-)
+ rename packages/{mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch => mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame-pool.patch} (100%)
+ create mode 100644 packages/mpv-0004-video-filter-refqueue-add-mp-refqueue-output-fields.patch
+ rename packages/{mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch => mpv-0005-vf-d3d11vpp-fix-deinterlacing.patch} (100%)
+ rename packages/{mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch => mpv-0006-vf-d3d11vpp-print-supported-custom-rates.patch} (100%)
+ rename packages/{mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch => mpv-0007-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch} (100%)
+ rename packages/{mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch => mpv-0008-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-setti.patch} (100%)
+ rename packages/{mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch => mpv-0009-vf-d3d11vpp-add-dots-to-logs.patch} (100%)
+ delete mode 100644 packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
+ rename packages/{mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch => mpv-0012-hwdec-d3d11egl-fix-EGL-EXT-device-query-availability-ch.patch} (100%)
+
+diff --git a/packages/CMakeLists.txt b/packages/CMakeLists.txt
+index 24edd46..3c60568 100644
+--- a/packages/CMakeLists.txt
++++ b/packages/CMakeLists.txt
+@@ -34,6 +34,7 @@ list(APPEND ep
+     spirv-tools
+     spirv-cross
+     glslang
++    vulkan-header
+     shaderc
+     glad
+     fast_float
+diff --git a/packages/libplacebo.cmake b/packages/libplacebo.cmake
+index 95232ca..a681458 100644
+--- a/packages/libplacebo.cmake
++++ b/packages/libplacebo.cmake
+@@ -2,6 +2,7 @@ get_property(src_glad TARGET glad PROPERTY _EP_SOURCE_DIR)
+ get_property(src_fast_float TARGET fast_float PROPERTY _EP_SOURCE_DIR)
+ ExternalProject_Add(libplacebo
+     DEPENDS
++        vulkan-header
+         shaderc
+         spirv-cross
+         lcms2
+@@ -31,6 +32,7 @@ ExternalProject_Add(libplacebo
+         -Dvulkan=disabled
+         -Dshaderc=enabled
+         -Dlcms=enabled
++        -Dvulkan-registry='${MINGW_INSTALL_PREFIX}/share/vulkan/registry/vk.xml'
+         -Ddebug=true
+         -Db_ndebug=true
+         -Doptimization=3
+diff --git a/packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch b/packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame-pool.patch
+similarity index 100%
+rename from packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch
+rename to packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame-pool.patch
+diff --git a/packages/mpv-0004-video-filter-refqueue-add-mp-refqueue-output-fields.patch b/packages/mpv-0004-video-filter-refqueue-add-mp-refqueue-output-fields.patch
+new file mode 100644
+index 0000000..a31e6d6
+--- /dev/null
++++ b/packages/mpv-0004-video-filter-refqueue-add-mp-refqueue-output-fields.patch
+@@ -0,0 +1,44 @@
++From 47ed5785e494ffc3a8b71b12ab54a842d8d696b6 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Wed, 18 Feb 2026 09:56:32 +0100
++Subject: [PATCH] video/filter/refqueue: add mp_refqueue_output_fields
++
++---
++ video/filter/refqueue.c | 7 ++++++-
++ video/filter/refqueue.h | 1 +
++ 2 files changed, 7 insertions(+), 1 deletion(-)
++
++diff --git a/video/filter/refqueue.c b/video/filter/refqueue.c
++index 078981c65cdb0..0b6ade2d13787 100644
++--- a/video/filter/refqueue.c
+++++ b/video/filter/refqueue.c
++@@ -176,7 +176,7 @@ static bool output_next_field(struct mp_refqueue *q)
++ {
++     if (q->second_field)
++         return false;
++-    if (!(q->flags & MP_MODE_OUTPUT_FIELDS))
+++    if (!mp_refqueue_output_fields(q))
++         return false;
++     if (!mp_refqueue_should_deint(q))
++         return false;
++@@ -368,3 +368,8 @@ struct mp_image *mp_refqueue_get_format(struct mp_refqueue *q)
++ {
++     return q->in_format;
++ }
+++
+++bool mp_refqueue_output_fields(struct mp_refqueue *q)
+++{
+++    return q->flags & MP_MODE_OUTPUT_FIELDS;
+++}
++diff --git a/video/filter/refqueue.h b/video/filter/refqueue.h
++index d14058d609570..179c66f618edf 100644
++--- a/video/filter/refqueue.h
+++++ b/video/filter/refqueue.h
++@@ -36,6 +36,7 @@ enum {
++ void mp_refqueue_set_mode(struct mp_refqueue *q, int flags);
++ void mp_refqueue_set_parity(struct mp_refqueue *q, int parity);
++ bool mp_refqueue_should_deint(struct mp_refqueue *q);
+++bool mp_refqueue_output_fields(struct mp_refqueue *q);
++ bool mp_refqueue_is_top_field(struct mp_refqueue *q);
++ bool mp_refqueue_top_field_first(struct mp_refqueue *q);
++ bool mp_refqueue_is_second_field(struct mp_refqueue *q);
+diff --git a/packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch b/packages/mpv-0005-vf-d3d11vpp-fix-deinterlacing.patch
+similarity index 100%
+rename from packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch
+rename to packages/mpv-0005-vf-d3d11vpp-fix-deinterlacing.patch
+diff --git a/packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch b/packages/mpv-0006-vf-d3d11vpp-print-supported-custom-rates.patch
+similarity index 100%
+rename from packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch
+rename to packages/mpv-0006-vf-d3d11vpp-print-supported-custom-rates.patch
+diff --git a/packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch b/packages/mpv-0007-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+similarity index 100%
+rename from packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+rename to packages/mpv-0007-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+diff --git a/packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch b/packages/mpv-0008-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-setti.patch
+similarity index 100%
+rename from packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch
+rename to packages/mpv-0008-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-setti.patch
+diff --git a/packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch b/packages/mpv-0009-vf-d3d11vpp-add-dots-to-logs.patch
+similarity index 100%
+rename from packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch
+rename to packages/mpv-0009-vf-d3d11vpp-add-dots-to-logs.patch
+diff --git a/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch b/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
+deleted file mode 100644
+index e4ef6df..0000000
+--- a/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
++++ /dev/null
+@@ -1,130 +0,0 @@
+-From f7ad4a5f8f0552a29d83ae8221a0de92d93353ba Mon Sep 17 00:00:00 2001
+-From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
+-Date: Thu, 19 Feb 2026 06:44:33 +0100
+-Subject: [PATCH] vf_d3d11vpp: set output format for NVIDIA RTX Video HDR
+-
+-It outputs RGB tone mapped image, set params accordingly.
+-
+-Fixes: #17265
+----
+- video/filter/vf_d3d11vpp.c | 68 +++++++++++++++++++++++++++++---------
+- 1 file changed, 53 insertions(+), 15 deletions(-)
+-
+-diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
+-index 2e10c926a76a0..718d81bd3c67a 100644
+---- a/video/filter/vf_d3d11vpp.c
+-+++ b/video/filter/vf_d3d11vpp.c
+-@@ -169,10 +169,33 @@ static void enable_nvidia_rtx_extension(struct mp_filter *vf)
+-     }
+- }
+- 
+--static void enable_nvidia_true_hdr(struct mp_filter *vf)
+-+static bool supports_nvidia_true_hdr(struct mp_filter *vf)
+- {
+-     struct priv *p = vf->priv;
+- 
+-+    UINT supported = 0;
+-+    HRESULT hr = ID3D11VideoContext_VideoProcessorGetStreamExtension(p->video_ctx,
+-+                                                                     p->video_proc,
+-+                                                                     0,
+-+                                                                     &NVIDIA_TRUE_HDR_INTERFACE_GUID,
+-+                                                                     sizeof(supported),
+-+                                                                     &supported);
+-+
+-+    if (FAILED(hr) || !supported) {
+-+        MP_WARN(vf, "NVIDIA RTX Video HDR not supported.\n");
+-+        return false;
+-+    }
+-+
+-+    return true;
+-+}
+-+
+-+static bool enable_nvidia_true_hdr(struct mp_filter *vf)
+-+{
+-+    struct priv *p = vf->priv;
+-+
+-+    if (!supports_nvidia_true_hdr(vf))
+-+        return false;
+-+
+-     struct nvidia_ext {
+-         unsigned int version;
+-         unsigned int method;
+-@@ -189,9 +212,11 @@ static void enable_nvidia_true_hdr(struct mp_filter *vf)
+- 
+-     if (FAILED(hr)) {
+-         MP_WARN(vf, "Failed to enable NVIDIA RTX Video HDR: %s\n", mp_HRESULT_to_str(hr));
+--    } else {
+--        MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled.\n");
+-+        return false;
+-     }
+-+
+-+    MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled.\n");
+-+    return true;
+- }
+- 
+- static void enable_intel_vsr_extension(struct mp_filter *vf)
+-@@ -376,6 +401,28 @@ static int recreate_video_proc(struct mp_filter *vf)
+-                                                             D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL,
+-                                                          FALSE, 0);
+- 
+-+    if (p->opts->nvidia_true_hdr && enable_nvidia_true_hdr(vf)) {
+-+        // NVIDIA RTX Video HDR seems to require BT.2020+PQ RGB output.
+-+        p->out_params.color = pl_color_space_hdr10;
+-+        p->out_params.color.hdr.max_luma = 1000;
+-+        MP_WARN(vf, "Tagging image output as HDR with max-luma=1000 nits for "
+-+                    "NVIDIA RTX Video HDR. This is only a guess. "
+-+                    "Adjust the value to match NVIDIA settings with "
+-+                    "`--vf-add=format=max-luma=<value>`.\n");
+-+        const enum mp_imgfmt output_format = IMGFMT_X2BGR10;
+-+        if (p->opts->format) {
+-+            // Don't override user choice, even if it might break output.
+-+            if (p->out_params.hw_subfmt != output_format) {
+-+                MP_WARN(vf, "Requested %s format is not supported for NVIDIA RTX Video HDR. "
+-+                            "Consider using %s instead or leave it unspecified.\n",
+-+                        mp_imgfmt_to_name(p->opts->format),
+-+                        mp_imgfmt_to_name(output_format));
+-+            }
+-+        } else {
+-+            p->out_params.hw_subfmt = output_format;
+-+        }
+-+    }
+-+
+-     mp_image_params_guess_csp(&p->params);
+-     mp_image_params_guess_csp(&p->out_params);
+- 
+-@@ -415,9 +462,6 @@ static int recreate_video_proc(struct mp_filter *vf)
+-         break;
+-     }
+- 
+--    if (p->opts->nvidia_true_hdr)
+--        enable_nvidia_true_hdr(vf);
+--
+-     return 0;
+- fail:
+-     destroy_video_proc(vf);
+-@@ -502,12 +546,8 @@ static struct mp_image *render(struct mp_filter *vf)
+-     ID3D11Texture2D *d3d_tex = (void *)in->planes[0];
+- 
+-     mp_image_copy_attributes(out, in);
+--    // mp_image_copy_attributes overwrites the height and width
+--    // set it the size back if we are using scale
+--    mp_image_set_size(out, p->out_params.w, p->out_params.h);
+--    // mp_image_copy_attributes will set the crop value to the origin
+--    // width and height, set the crop back to the default state
+--    out->params.crop = p->out_params.crop;
+-+    // TODO: sanitize out_params based the processing enabled.
+-+    out->params = p->out_params;
+- 
+-     D3D11_VIDEO_FRAME_FORMAT d3d_frame_format;
+-     if (!mp_refqueue_should_deint(p->queue)) {
+-@@ -623,9 +663,7 @@ static void vf_d3d11vpp_process(struct mp_filter *vf)
+-         if (p->opts->format)
+-             p->out_params.hw_subfmt = p->opts->format;
+- 
+--        p->require_filtering = p->params.hw_subfmt != p->out_params.hw_subfmt ||
+--                               p->params.w != p->out_params.w ||
+--                               p->params.h != p->out_params.h ||
+-+        p->require_filtering = !mp_image_params_static_equal(&p->params, &p->out_params) ||
+-                                p->opts->nvidia_true_hdr;
+-     }
+- 
+diff --git a/packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch b/packages/mpv-0012-hwdec-d3d11egl-fix-EGL-EXT-device-query-availability-ch.patch
+similarity index 100%
+rename from packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch
+rename to packages/mpv-0012-hwdec-d3d11egl-fix-EGL-EXT-device-query-availability-ch.patch
+-- 
+2.43.0
+

@@ -1,0 +1,1830 @@
+From 4377286ebe0e09ab5421219ca5e891ed1edfe90c Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Wed, 30 Sep 2026 20:58:59 +0200
+Subject: [PATCH 1/7] visiv: LGPL-Konfiguration (FFmpeg n8.1.3 ohne GPL, mpv
+ v0.41.0 -Dgpl=false + Rueckportierungen)
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ packages/CMakeLists.txt                       |  75 +----
+ packages/ffmpeg.cmake                         | 135 +++-----
+ packages/libass.cmake                         |   3 +-
+ packages/libplacebo.cmake                     |   9 +-
+ ...set-D3D11-BindFlags-for-all-hw-frame.patch |  54 +++
+ ...002-vf-d3d11vpp-rename-ivctc-to-ivtc.patch |  48 +++
+ ...d11vpp-update-mode-selection-logging.patch | 107 ++++++
+ ...v-0004-vf-d3d11vpp-fix-deinterlacing.patch | 312 ++++++++++++++++++
+ ...3d11vpp-print-supported-custom-rates.patch |  29 ++
+ ...d3d11vpp-use-half-rate-for-IVTC-mode.patch |  67 ++++
+ ...e-ID3D11VideoContext1-interface-for-.patch | 199 +++++++++++
+ ...pv-0008-vf-d3d11vpp-add-dots-to-logs.patch |  40 +++
+ ...t-output-format-for-NVIDIA-RTX-Video.patch | 130 ++++++++
+ ...d11vpp-allow-more-future-past-frames.patch | 147 +++++++++
+ ...11-vf-d3d11vpp-fix-print-index-value.patch |  22 ++
+ ..._EXT_device_query-availability-check.patch |  33 ++
+ packages/mpv.cmake                            | 111 +++----
+ toolchain/gcc/gcc.cmake                       |   1 -
+ 18 files changed, 1295 insertions(+), 227 deletions(-)
+ create mode 100644 packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch
+ create mode 100644 packages/mpv-0002-vf-d3d11vpp-rename-ivctc-to-ivtc.patch
+ create mode 100644 packages/mpv-0003-vf-d3d11vpp-update-mode-selection-logging.patch
+ create mode 100644 packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch
+ create mode 100644 packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch
+ create mode 100644 packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+ create mode 100644 packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch
+ create mode 100644 packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch
+ create mode 100644 packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
+ create mode 100644 packages/mpv-0010-vf-d3d11vpp-allow-more-future-past-frames.patch
+ create mode 100644 packages/mpv-0011-vf-d3d11vpp-fix-print-index-value.patch
+ create mode 100644 packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch
+
+diff --git a/packages/CMakeLists.txt b/packages/CMakeLists.txt
+index 1ada4b4..24edd46 100644
+--- a/packages/CMakeLists.txt
++++ b/packages/CMakeLists.txt
+@@ -1,112 +1,45 @@
+ set_property(DIRECTORY PROPERTY EP_STEP_TARGETS download)
+ include(${PROJECT_SOURCE_DIR}/cmake/packages_check.cmake)
++# visiv LGPL build: nur die Pakete, die libmpv-2.dll tatsaechlich braucht.
++# Alle GPL-Pakete (x264, x265, xvidcore, rubberband, libdvdcss/read/nav, lzo, davs2, ...) und nicht
++# benoetigte Pakete sind hier bewusst NICHT aufgefuehrt, damit sie nicht einmal versehentlich gebaut
++# werden koennen. Reihenfolge wie bei shinchiro (get_property braucht vorher definierte Targets).
+ list(APPEND ep
+-    gmp
+-    xz
+-    lzo
+     uchardet
+-    libsamplerate
+-    rubberband
+     zlib
+     zstd
+     bzip2
+     libjpeg
+     lcms2
+-    lame
+-    ogg
+-    vorbis
+-    opus-dnn
+-    opus
+-    speex
+-    libmodplug
+-    libvpx
+-    xvidcore
+-    game-music-emu
+     libpng
+-    x264
+-    x265
+-    libdvdcss
+-    libdvdread
+-    libdvdnav
+     libiconv
+-    luajit
+     fribidi
+-    expat
+-    nettle
+-    mbedtls
+     libxml2
+     brotli
+     freetype2
+-    libudfread
+-    libbluray
+     harfbuzz
+-    libsoxr
+     graphengine
+     libzimg
+-    fontconfig
+     libunibreak
+     libass
+-    subrandr
+     libvpl
+     amf-headers
+-    avisynth-headers
+     nvcodec-headers
+-    libmysofa
+-    aom
+     xxhash
+     dav1d
+-    libwebp
+-    vapoursynth
+-    libbs2b
+     openssl
+-    libssh
+-    libsrt
+-    libarchive
+-    highway
+-    libjxl
+-    uavs3d
+-    davs2
+     angle-headers
+     mujs
+     spirv-headers
+     spirv-tools
+     spirv-cross
+     glslang
+-    vulkan-header
+-    vulkan
+-    libsdl2
+-    openal-soft
+-    libopenmpt
+     shaderc
+     glad
+     fast_float
+-    svtav1
+     libplacebo
+-    libva
+-    libzvbi
+-    libaribcaption
+-    libsixel
+     ffmpeg
+-    ngtcp2
+-    nghttp3
+-    nghttp2
+-    c-ares
+-    libpsl
+-    curl
+     mpv
+-    mpv-release
+-    mpv-packaging
+-    flac
+-    opusfile
+-    libopusenc
+-    opus-tools
+-    termcap
+-    readline
+-    cryptopp
+-    sqlite
+-    libuv
+-    libsodium
+-    megasdk
+ )
+ foreach(package IN LISTS ep)
+     if(NOT ${SINGLE_SOURCE_LOCATION} STREQUAL "")
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index b9ab7a3..eee318a 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -1,51 +1,21 @@
++# visiv LGPL build: FFmpeg ohne GPL/nonfree-Komponenten.
++# Grundlage: shinchiro/mpv-winbuild-cmake, LGPL-Schalter nach media-kit/libmpv-win32-video-build.
++# Unterschiede zu media-kit (2023/2024): alle LGPL-Decoder/Demuxer/Parser/Filter/Protokolle an
++# (statt kuratierter Liste), Encoder nur png/mjpeg (Screenshots), Muxer nur spdif (Passthrough)
++# + mpegts/matroska/mp4/mov (mpv stream-record/dump-cache), TLS ueber OpenSSL 3 (Apache-2.0).
+ ExternalProject_Add(ffmpeg
+     DEPENDS
+         amf-headers
+-        avisynth-headers
+         nvcodec-headers
+         bzip2
+-        lame
+-        lcms2
++        zlib
+         openssl
+-        libssh
+-        libsrt
+-        libass
+-        libbluray
+-        libdvdnav
+-        libdvdread
+-        libmodplug
+-        libpng
+-        libsoxr
+-        libbs2b
+-        libvpx
+-        libwebp
+-        libzimg
+-        libmysofa
+-        fontconfig
+-        harfbuzz
+-        opus
+-        speex
+-        vorbis
+-        x264
+-        ${ffmpeg_x265}
+         libxml2
+-        libvpl
+-        libopenmpt
+-        libjxl
+-        libplacebo
+-        libzvbi
+-        libaribcaption
+-        aom
+-        svtav1
+         dav1d
+-        vapoursynth
+-        ${ffmpeg_uavs3d}
+-        ${ffmpeg_davs2}
+-        rubberband
+-        libva
+-        openal-soft
++        libvpl
+     GIT_REPOSITORY https://github.com/FFmpeg/FFmpeg.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG n8.1.3
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !tests/ref/fate"
+     UPDATE_COMMAND ""
+@@ -57,65 +27,54 @@ ExternalProject_Add(ffmpeg
+         --pkg-config-flags=--static
+         --enable-cross-compile
+         --enable-runtime-cpudetect
+-        --enable-gpl
++        --disable-gpl
++        --disable-nonfree
+         --enable-version3
+-        --enable-avisynth
+-        --enable-vapoursynth
+-        --enable-libass
+-        --enable-libbluray
+-        --enable-libdvdnav
+-        --enable-libdvdread
+-        --enable-libfreetype
+-        --enable-libfribidi
+-        --enable-libfontconfig
+-        --enable-libharfbuzz
+-        --enable-libmodplug
+-        --enable-libopenmpt
+-        --enable-libmp3lame
+-        --enable-lcms2
+-        --enable-libopus
+-        --enable-libsoxr
+-        --enable-libspeex
+-        --enable-libvorbis
+-        --enable-libbs2b
+-        --enable-librubberband
+-        --enable-libvpx
+-        --enable-libwebp
+-        --enable-libx264
+-        --enable-libx265
+-        --enable-libaom
+-        --enable-libsvtav1
+-        --enable-libdav1d
+-        ${ffmpeg_davs2_cmd}
+-        ${ffmpeg_uavs3d_cmd}
+-        --enable-libzimg
++        --enable-static
++        --disable-shared
++        --disable-programs
++        --disable-doc
++        --disable-avdevice
++        --disable-indevs
++        --disable-outdevs
++        --disable-encoders
++        --enable-encoder=png
++        --enable-encoder=mjpeg
++        --disable-muxers
++        --enable-muxer=spdif
++        --enable-muxer=mpegts
++        --enable-muxer=matroska
++        --enable-muxer=webm
++        --enable-muxer=mp4
++        --enable-muxer=mov
++        --enable-network
+         --enable-openssl
++        --disable-schannel
+         --enable-libxml2
+-        --enable-libmysofa
+-        --enable-libssh
+-        --enable-libsrt
+-        --enable-libvpl
+-        --enable-libjxl
+-        --enable-libplacebo
+-        --enable-libzvbi
+-        --enable-libaribcaption
+-        --enable-cuda-llvm
+-        --enable-cuvid
++        --enable-libdav1d
++        --enable-zlib
++        --enable-bzlib
++        --disable-lzma
++        --disable-iconv
++        --disable-sdl2
++        --enable-d3d11va
++        --enable-d3d12va
++        --enable-dxva2
++        --enable-ffnvcodec
+         --enable-nvdec
+-        --enable-nvenc
++        --enable-cuvid
++        --disable-cuda-llvm
+         --enable-amf
+-        --enable-openal
+-        --enable-opengl
+-        --disable-doc
+-        --disable-ffplay
+-        --disable-ffprobe
+-        --enable-vaapi
++        --enable-libvpl
++        --disable-vulkan
++        --disable-vaapi
+         --disable-vdpau
+         --disable-videotoolbox
+-        --disable-decoder=libaom_av1
++        --disable-audiotoolbox
++        --disable-mediafoundation
+         ${ffmpeg_lto}
+         --extra-cflags='-Wno-error=int-conversion'
+-        "--extra-libs='${ffmpeg_extra_libs}'" # -lstdc++ / -lc++ needs by libjxl and shaderc
++        "--extra-libs='${ffmpeg_extra_libs}'" # -lstdc++ fuer libvpl (C++)
+     BUILD_COMMAND ${MAKE}
+     INSTALL_COMMAND ${MAKE} install
+     LOG_DOWNLOAD 1 LOG_UPDATE 1 LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+diff --git a/packages/libass.cmake b/packages/libass.cmake
+index ed27477..7f03f84 100644
+--- a/packages/libass.cmake
++++ b/packages/libass.cmake
+@@ -4,7 +4,6 @@ ExternalProject_Add(libass
+         freetype2
+         fribidi
+         libiconv
+-        fontconfig
+         libunibreak
+     GIT_REPOSITORY https://github.com/libass/libass.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+@@ -16,7 +15,7 @@ ExternalProject_Add(libass
+         --cross-file=${MESON_CROSS}
+         --buildtype=release
+         --default-library=static
+-        -Dfontconfig=enabled
++        -Dfontconfig=disabled
+         -Ddirectwrite=enabled
+         -Dasm=enabled
+         -Dlibunibreak=enabled
+diff --git a/packages/libplacebo.cmake b/packages/libplacebo.cmake
+index b5797dc..95232ca 100644
+--- a/packages/libplacebo.cmake
++++ b/packages/libplacebo.cmake
+@@ -2,7 +2,6 @@ get_property(src_glad TARGET glad PROPERTY _EP_SOURCE_DIR)
+ get_property(src_fast_float TARGET fast_float PROPERTY _EP_SOURCE_DIR)
+ ExternalProject_Add(libplacebo
+     DEPENDS
+-        vulkan
+         shaderc
+         spirv-cross
+         lcms2
+@@ -11,9 +10,12 @@ ExternalProject_Add(libplacebo
+         xxhash
+     GIT_REPOSITORY https://github.com/haasn/libplacebo.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG v7.360.1
+     GIT_CLONE_FLAGS "--filter=tree:0"
+     GIT_SUBMODULES ""
+     UPDATE_COMMAND ""
++    # visiv: statisch bauen ohne __declspec(dllexport), sonst exportiert libmpv-2.dll ~500 pl_*-Funktionen
++    PATCH_COMMAND sed -i s/-DPL_EXPORT/-DPL_STATIC/ <SOURCE_DIR>/src/meson.build
+     CONFIGURE_COMMAND ""
+     COMMAND bash -c "rm -rf <SOURCE_DIR>/3rdparty/glad"
+     COMMAND bash -c "rm -rf <SOURCE_DIR>/3rdparty/fast_float"
+@@ -25,10 +27,13 @@ ExternalProject_Add(libplacebo
+         --cross-file=${MESON_CROSS}
+         --default-library=static
+         -Dd3d11=enabled
++        -Dopengl=enabled
++        -Dvulkan=disabled
++        -Dshaderc=enabled
++        -Dlcms=enabled
+         -Ddebug=true
+         -Db_ndebug=true
+         -Doptimization=3
+-        -Dvulkan-registry='${MINGW_INSTALL_PREFIX}/share/vulkan/registry/vk.xml'
+         -Ddemos=false
+     BUILD_COMMAND ${EXEC} ninja -C <BINARY_DIR>
+     INSTALL_COMMAND ${EXEC} ninja -C <BINARY_DIR> install
+diff --git a/packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch b/packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch
+new file mode 100644
+index 0000000..ec597a2
+--- /dev/null
++++ b/packages/mpv-0001-mp-image-pool-set-D3D11-BindFlags-for-all-hw-frame.patch
+@@ -0,0 +1,54 @@
++From e72807e7a0d78302e8f30385fc24c13925aca446 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Thu, 18 Dec 2025 20:50:40 +0100
++Subject: [PATCH] mp_image_pool: set D3D11 BindFlags for all hw frame pools
++
++It's always needed, not only in d3d11vpp.
++---
++ video/filter/vf_d3d11vpp.c |  4 ----
++ video/mp_image_pool.c      | 10 ++++++++++
++ 2 files changed, 10 insertions(+), 4 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 8dba38a47c24e..fbd9eab4453e6 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -342,10 +342,6 @@ static struct mp_image *alloc_out(struct mp_filter *vf)
++         return NULL;
++     }
++ 
++-    AVHWFramesContext *hw_frame_ctx = (void *)p->hw_pool->data;
++-    AVD3D11VAFramesContext *d3d11va_frames_ctx = hw_frame_ctx->hwctx;
++-    d3d11va_frames_ctx->BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
++-
++     AVFrame *av_frame = av_frame_alloc();
++     MP_HANDLE_OOM(av_frame);
++     if (av_hwframe_get_buffer(p->hw_pool, av_frame, 0) < 0) {
++diff --git a/video/mp_image_pool.c b/video/mp_image_pool.c
++index 2ed9fd7395671..0830bcd29dc0f 100644
++--- a/video/mp_image_pool.c
+++++ b/video/mp_image_pool.c
++@@ -23,6 +23,9 @@
++ 
++ #include <libavutil/buffer.h>
++ #include <libavutil/hwcontext.h>
+++#if HAVE_D3D11
+++#include <libavutil/hwcontext_d3d11va.h>
+++#endif
++ #if HAVE_VULKAN
++ #include <libavutil/hwcontext_vulkan.h>
++ #endif
++@@ -404,6 +407,13 @@ bool mp_update_av_hw_frames_pool(struct AVBufferRef **hw_frames_ctx,
++         }
++ #endif
++ 
+++#if HAVE_D3D11
+++        if (format == AV_PIX_FMT_D3D11) {
+++            AVD3D11VAFramesContext *d3d11va_frames_ctx = hw_frames->hwctx;
+++            d3d11va_frames_ctx->BindFlags |= D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+++        }
+++#endif
+++
++         if (av_hwframe_ctx_init(*hw_frames_ctx) < 0) {
++             av_buffer_unref(hw_frames_ctx);
++             return false;
+diff --git a/packages/mpv-0002-vf-d3d11vpp-rename-ivctc-to-ivtc.patch b/packages/mpv-0002-vf-d3d11vpp-rename-ivctc-to-ivtc.patch
+new file mode 100644
+index 0000000..e0570ce
+--- /dev/null
++++ b/packages/mpv-0002-vf-d3d11vpp-rename-ivctc-to-ivtc.patch
+@@ -0,0 +1,48 @@
++From 626f1344c889d2cb6d04a8952ba8571013c21b3e Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Wed, 18 Feb 2026 03:52:51 +0100
++Subject: [PATCH] vf_d3d11vpp: rename `ivctc` to `ivtc`
++
++This was a typo. Although this changes the user option name, this
++filter, especially this option, is so niche that I fix it without a
++deprecation period.
++---
++ DOCS/interface-changes/vf-d3d11vpp-fix-ivctc-typo.txt | 1 +
++ DOCS/man/vf.rst                                       | 2 +-
++ video/filter/vf_d3d11vpp.c                            | 2 +-
++ 3 files changed, 3 insertions(+), 2 deletions(-)
++ create mode 100644 DOCS/interface-changes/vf-d3d11vpp-fix-ivctc-typo.txt
++
++diff --git a/DOCS/interface-changes/vf-d3d11vpp-fix-ivctc-typo.txt b/DOCS/interface-changes/vf-d3d11vpp-fix-ivctc-typo.txt
++new file mode 100644
++index 0000000000000..2fb00dc712153
++--- /dev/null
+++++ b/DOCS/interface-changes/vf-d3d11vpp-fix-ivctc-typo.txt
++@@ -0,0 +1 @@
+++rename `d3d11vpp=mode=ivctc` to `d3d11vpp=mode=ivtc`
++diff --git a/DOCS/man/vf.rst b/DOCS/man/vf.rst
++index d9d3dfbe596cb..9f46414fd0c08 100644
++--- a/DOCS/man/vf.rst
+++++ b/DOCS/man/vf.rst
++@@ -741,7 +741,7 @@ Available mpv-only filters are:
++             NVIDIA RTX Super Resolution.
++     ``interlaced-only=<yes|no>``
++         If ``yes``, only deinterlace frames marked as interlaced (default: no).
++-    ``mode=<blend|bob|adaptive|mocomp|ivctc|none>``
+++    ``mode=<blend|bob|adaptive|mocomp|ivtc|none>``
++         Tries to select a video processor with the given processing capability.
++         If a video processor supports multiple capabilities, it is not clear
++         which algorithm is actually selected. ``none`` always falls back. On
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index fbd9eab4453e6..334c9a1d49ad7 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -643,7 +643,7 @@ static const m_option_t vf_opts_fields[] = {
++         {"bob", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB},
++         {"adaptive", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_ADAPTIVE},
++         {"mocomp", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_MOTION_COMPENSATION},
++-        {"ivctc", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_INVERSE_TELECINE},
+++        {"ivtc", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_INVERSE_TELECINE},
++         {"none", 0})},
++     {"parity", OPT_CHOICE(field_parity,
++         {"tff", MP_FIELD_PARITY_TFF},
+diff --git a/packages/mpv-0003-vf-d3d11vpp-update-mode-selection-logging.patch b/packages/mpv-0003-vf-d3d11vpp-update-mode-selection-logging.patch
+new file mode 100644
+index 0000000..c237ce1
+--- /dev/null
++++ b/packages/mpv-0003-vf-d3d11vpp-update-mode-selection-logging.patch
+@@ -0,0 +1,107 @@
++From db2352f69a13c553f3d21193b7368c895f9c7beb Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Wed, 18 Feb 2026 03:04:53 +0100
++Subject: [PATCH] vf_d3d11vpp: update mode selection logging
++
++---
++ video/filter/vf_d3d11vpp.c | 46 ++++++++++++++++++++++++--------------
++ 1 file changed, 29 insertions(+), 17 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 334c9a1d49ad7..056ceff120394 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -29,6 +29,7 @@
++ #include "filters/filter.h"
++ #include "filters/filter_internal.h"
++ #include "filters/user_filters.h"
+++#include "player/core.h"
++ #include "refqueue.h"
++ #include "video/hwdec.h"
++ #include "video/mp_image.h"
++@@ -64,6 +65,16 @@ static const unsigned int intel_vpe_scaling_vsr = 0x2;
++ static const unsigned int intel_vpe_fn_mode      = 0x20;
++ static const unsigned int intel_vpe_mode_preproc = 0x1;
++ 
+++static const struct m_opt_choice_alternatives d3d11vpp_processor_caps[] = {
+++    {"blend", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND},
+++    {"bob", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB},
+++    {"adaptive", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_ADAPTIVE},
+++    {"mocomp", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_MOTION_COMPENSATION},
+++    {"ivtc", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_INVERSE_TELECINE},
+++    {"none", 0},
+++    {0}
+++};
+++
++ enum scaling_mode {
++     SCALING_BASIC,
++     SCALING_INTEL_VSR,
++@@ -237,10 +248,11 @@ static int recreate_video_proc(struct mp_filter *vf)
++     if (FAILED(hr))
++         goto fail;
++ 
++-    if (!p->opts->mode && p->opts->deint_enabled)
++-        p->opts->mode = D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB;
+++    int mode = p->opts->mode;
+++    if (!mode && p->opts->deint_enabled)
+++        mode = D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB;
++ 
++-    int rindex = p->opts->mode ? -1 : 0;
+++    int rindex = mode ? -1 : 0;
++     if (rindex == 0)
++         goto create;
++ 
++@@ -249,8 +261,8 @@ static int recreate_video_proc(struct mp_filter *vf)
++     if (FAILED(hr))
++         goto fail;
++ 
++-    MP_VERBOSE(vf, "Found %d rate conversion caps. Looking for caps=0x%x.\n",
++-               (int)caps.RateConversionCapsCount, p->opts->mode);
+++    MP_VERBOSE(vf, "Found %u rate conversion caps. Looking for caps=%#x.\n",
+++               caps.RateConversionCapsCount, mode);
++ 
++     for (int n = 0; n < caps.RateConversionCapsCount; n++) {
++         D3D11_VIDEO_PROCESSOR_RATE_CONVERSION_CAPS rcaps;
++@@ -258,16 +270,22 @@ static int recreate_video_proc(struct mp_filter *vf)
++                 (p->vp_enum, n, &rcaps);
++         if (FAILED(hr))
++             goto fail;
++-        MP_VERBOSE(vf, "  - %d: 0x%08x\n", n, (unsigned)rcaps.ProcessorCaps);
++-        if (rcaps.ProcessorCaps & p->opts->mode) {
++-            MP_VERBOSE(vf, "       (matching)\n");
++-            if (rindex < 0)
+++        const char *marker = WHITE_CIRCLE;
+++        if (rcaps.ProcessorCaps & mode) {
+++            if (rindex < 0) {
++                 rindex = n;
+++                marker = BLACK_CIRCLE;
+++            }
++         }
+++        MP_VERBOSE(vf, "%s %d: processor_caps=%#x past_frames=%u future_frames=%u "
+++                       "itelecine_caps=%#x custom_rate_count=%u\n", marker, n,
+++                   rcaps.ProcessorCaps, rcaps.PastFrames, rcaps.FutureFrames,
+++                   rcaps.ITelecineCaps, rcaps.CustomRateCount);
++     }
++ 
++     if (rindex < 0) {
++-        MP_WARN(vf, "No fitting video processor found, picking #0.\n");
+++        MP_WARN(vf, "No video processor found matching %s mode, using #0.\n",
+++                m_opt_choice_str(d3d11vpp_processor_caps, mode));
++         rindex = 0;
++     }
++ 
++@@ -638,13 +656,7 @@ static const m_option_t vf_opts_fields[] = {
++         {"intel", SCALING_INTEL_VSR},
++         {"nvidia", SCALING_NVIDIA_RTX})},
++     {"interlaced-only", OPT_BOOL(interlaced_only)},
++-    {"mode", OPT_CHOICE(mode,
++-        {"blend", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND},
++-        {"bob", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB},
++-        {"adaptive", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_ADAPTIVE},
++-        {"mocomp", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_MOTION_COMPENSATION},
++-        {"ivtc", D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_INVERSE_TELECINE},
++-        {"none", 0})},
+++    {"mode", OPT_CHOICE_C(mode, d3d11vpp_processor_caps)},
++     {"parity", OPT_CHOICE(field_parity,
++         {"tff", MP_FIELD_PARITY_TFF},
++         {"bff", MP_FIELD_PARITY_BFF},
+diff --git a/packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch b/packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch
+new file mode 100644
+index 0000000..a7e5391
+--- /dev/null
++++ b/packages/mpv-0004-vf-d3d11vpp-fix-deinterlacing.patch
+@@ -0,0 +1,312 @@
++From 2141fa88b3d4fed9f409ea0d4c3a25ad82e89de4 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sun, 15 Feb 2026 03:36:50 +0100
++Subject: [PATCH] vf_d3d11vpp: fix deinterlacing
++
++There were multiple issues in API usage, not setting correct
++OutputIndex, lying about frame field parity to make it work without
++OutputIndex. Not passing reference frames which forced BOB mode always.
++
++Fix all issues and allow forcing BLEND/BOB mode by not passing frames.
++Blend mode also sets half rate output. Half rate could be separate
++option too, but there is not much gain from it except for debugging
++really.
++
++Fixes: #15197
++---
++ video/filter/vf_d3d11vpp.c | 159 ++++++++++++++++++++++++++++---------
++ 1 file changed, 120 insertions(+), 39 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 056ceff120394..9ec2a1c3e1022 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -114,13 +114,20 @@ struct priv {
++     AVBufferRef *hw_pool;
++ 
++     struct mp_refqueue *queue;
+++
+++    UINT past_frames;
+++    UINT future_frames;
+++
+++    UINT output_seq;
++ };
++ 
+++#define D3D11VPP_MAX_FRAMES 4
++ 
++ static void flush_frames(struct mp_filter *vf)
++ {
++     struct priv *p = vf->priv;
++     mp_refqueue_flush(p->queue);
+++    p->output_seq = 0;
++ }
++ 
++ static void destroy_video_proc(struct mp_filter *vf)
++@@ -248,32 +255,40 @@ static int recreate_video_proc(struct mp_filter *vf)
++     if (FAILED(hr))
++         goto fail;
++ 
++-    int mode = p->opts->mode;
++-    if (!mode && p->opts->deint_enabled)
++-        mode = D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB;
++-
++-    int rindex = mode ? -1 : 0;
++-    if (rindex == 0)
++-        goto create;
+++    int mode = 0;
+++    if (mp_refqueue_should_deint(p->queue))
+++        mode = p->opts->mode ? p->opts->mode : D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_ADAPTIVE;
++ 
+++    D3D11_VIDEO_PROCESSOR_RATE_CONVERSION_CAPS rc_caps = {0};
++     D3D11_VIDEO_PROCESSOR_CAPS caps;
++     hr = ID3D11VideoProcessorEnumerator_GetVideoProcessorCaps(p->vp_enum, &caps);
++     if (FAILED(hr))
++         goto fail;
++ 
++-    MP_VERBOSE(vf, "Found %u rate conversion caps. Looking for caps=%#x.\n",
++-               caps.RateConversionCapsCount, mode);
+++    static const char *frame_type[] = {
+++        [D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE] = "progressive",
+++        [D3D11_VIDEO_FRAME_FORMAT_INTERLACED_TOP_FIELD_FIRST] = "interlaced tff",
+++        [D3D11_VIDEO_FRAME_FORMAT_INTERLACED_BOTTOM_FIELD_FIRST] = "interlaced bff",
+++    };
+++    mp_require((size_t)p->d3d_frame_format < MP_ARRAY_SIZE(frame_type));
+++    MP_VERBOSE(vf, "Found %u rate conversion caps for %s frame. Looking for caps=%#x.\n",
+++               caps.RateConversionCapsCount, frame_type[p->d3d_frame_format], mode);
++ 
++-    for (int n = 0; n < caps.RateConversionCapsCount; n++) {
+++    int rindex = -1;
+++    for (UINT n = 0; n < caps.RateConversionCapsCount; n++) {
++         D3D11_VIDEO_PROCESSOR_RATE_CONVERSION_CAPS rcaps;
++         hr = ID3D11VideoProcessorEnumerator_GetVideoProcessorRateConversionCaps
++                 (p->vp_enum, n, &rcaps);
++         if (FAILED(hr))
++             goto fail;
+++        // Init rc_caps for fallback if no matching mode is found.
+++        if (n == 0)
+++            rc_caps = rcaps;
++         const char *marker = WHITE_CIRCLE;
++-        if (rcaps.ProcessorCaps & mode) {
+++        if ((rcaps.ProcessorCaps & mode) == mode) {
++             if (rindex < 0) {
++                 rindex = n;
+++                rc_caps = rcaps;
++                 marker = BLACK_CIRCLE;
++             }
++         }
++@@ -289,9 +304,6 @@ static int recreate_video_proc(struct mp_filter *vf)
++         rindex = 0;
++     }
++ 
++-    // TODO: so, how do we select which rate conversion mode the processor uses?
++-
++-create:
++     hr = ID3D11VideoDevice_CreateVideoProcessor(p->video_dev, p->vp_enum, rindex,
++                                                 &p->video_proc);
++     if (FAILED(hr)) {
++@@ -299,6 +311,33 @@ static int recreate_video_proc(struct mp_filter *vf)
++         goto fail;
++     }
++ 
+++    p->past_frames = MPMIN(rc_caps.PastFrames, D3D11VPP_MAX_FRAMES);
+++    p->future_frames = MPMIN(rc_caps.FutureFrames, D3D11VPP_MAX_FRAMES);
+++
+++    if (p->past_frames < rc_caps.PastFrames || p->future_frames < rc_caps.FutureFrames) {
+++        // No implementation should need more than D3D11VPP_MAX_FRAMES in practice.
+++        MP_ERR(vf, "Processor requested %u past frames and %u future frames, "
+++                   "but only %u/%u are supported. Please report an issue.\n",
+++               rc_caps.PastFrames, rc_caps.FutureFrames, p->past_frames, p->future_frames);
+++    }
+++
+++    // Force BOB if requested by user, this doesn't really make much sense, but
+++    // since we have an option, just allow to not use any ref frames.
+++    if (mode == D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB ||
+++        mode == D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND) {
+++        p->past_frames = 0;
+++        p->future_frames = 0;
+++        // Warn explicitly here, because forcing unsupported mode will cause
+++        // obviously wrong result.
+++        if ((rc_caps.ProcessorCaps & mode) != mode) {
+++            MP_WARN(vf, "%s mode requested, but not supported. Consider using "
+++                        "another mode for correct deinterlacing.\n",
+++                    m_opt_choice_str(d3d11vpp_processor_caps, mode));
+++        }
+++    }
+++
+++    mp_refqueue_set_refs(p->queue, p->past_frames, p->future_frames);
+++
++     // Note: libavcodec does not support cropping left/top with hwaccel.
++     RECT src_rc = {
++         .right = p->params.w,
++@@ -313,10 +352,17 @@ static int recreate_video_proc(struct mp_filter *vf)
++                                                                  p->video_proc,
++                                                                  0, FALSE);
++ 
+++    bool half_rate = !mp_refqueue_output_fields(p->queue) && mp_refqueue_should_deint(p->queue);
+++    MP_DBG(vf, "Using %u past and %u future frames for processing at %s rate.\n",
+++           p->past_frames, p->future_frames, half_rate ? "half" : "normal");
+++    // None of the major GPU vendors seem to support custom rates for proper
+++    // IVTC frame dropping. Only frame reconstruction is supported.
++     ID3D11VideoContext_VideoProcessorSetStreamOutputRate(p->video_ctx,
++                                                          p->video_proc,
++                                                          0,
++-                                                         D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL,
+++                                                         half_rate ?
+++                                                            D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_HALF :
+++                                                            D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL,
++                                                          FALSE, 0);
++ 
++     D3D11_VIDEO_PROCESSOR_COLOR_SPACE csp = {
++@@ -378,6 +424,26 @@ static struct mp_image *alloc_out(struct mp_filter *vf)
++     return img;
++ }
++ 
+++static ID3D11VideoProcessorInputView *create_input_view(struct mp_filter *vf,
+++                                                        struct mp_image *img)
+++{
+++    struct priv *p = vf->priv;
+++    if (!img)
+++        return NULL;
+++
+++    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC desc = {
+++        .ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D,
+++        .Texture2D.ArraySlice = (intptr_t)img->planes[1],
+++    };
+++    ID3D11VideoProcessorInputView *view = NULL;
+++    HRESULT hr = ID3D11VideoDevice_CreateVideoProcessorInputView(
+++        p->video_dev, (ID3D11Resource *)img->planes[0],
+++        p->vp_enum, &desc, &view);
+++    if (FAILED(hr))
+++        MP_WARN(vf, "Could not create ID3D11VideoProcessorInputView\n");
+++    return view;
+++}
+++
++ static struct mp_image *render(struct mp_filter *vf)
++ {
++     struct priv *p = vf->priv;
++@@ -386,6 +452,12 @@ static struct mp_image *render(struct mp_filter *vf)
++     ID3D11VideoProcessorInputView *in_view = NULL;
++     ID3D11VideoProcessorOutputView *out_view = NULL;
++     struct mp_image *in = NULL, *out = NULL;
+++
+++    UINT num_past = 0;
+++    ID3D11VideoProcessorInputView *past_views[D3D11VPP_MAX_FRAMES] = {0};
+++    UINT num_future = 0;
+++    ID3D11VideoProcessorInputView *future_views[D3D11VPP_MAX_FRAMES] = {0};
+++
++     out = alloc_out(vf);
++     if (!out) {
++         MP_WARN(vf, "failed to allocate frame\n");
++@@ -398,7 +470,6 @@ static struct mp_image *render(struct mp_filter *vf)
++     if (!in)
++         goto cleanup;
++     ID3D11Texture2D *d3d_tex = (void *)in->planes[0];
++-    int d3d_subindex = (intptr_t)in->planes[1];
++ 
++     mp_image_copy_attributes(out, in);
++     // mp_image_copy_attributes overwrites the height and width
++@@ -425,35 +496,31 @@ static struct mp_image *render(struct mp_filter *vf)
++         p->c_w = texdesc.Width;
++         p->c_h = texdesc.Height;
++         p->d3d_frame_format = d3d_frame_format;
+++        p->output_seq = 0;
++         if (recreate_video_proc(vf) < 0)
++             goto cleanup;
++     }
++ 
++-    if (!mp_refqueue_should_deint(p->queue)) {
++-        d3d_frame_format = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
++-    } else if (mp_refqueue_is_top_field(p->queue)) {
++-        d3d_frame_format = D3D11_VIDEO_FRAME_FORMAT_INTERLACED_TOP_FIELD_FIRST;
++-    } else {
++-        d3d_frame_format = D3D11_VIDEO_FRAME_FORMAT_INTERLACED_BOTTOM_FIELD_FIRST;
++-    }
++-
++     ID3D11VideoContext_VideoProcessorSetStreamFrameFormat(p->video_ctx,
++                                                           p->video_proc,
++                                                           0, d3d_frame_format);
++ 
++-    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC indesc = {
++-        .ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D,
++-        .Texture2D = {
++-            .ArraySlice = d3d_subindex,
++-        },
++-    };
++-    hr = ID3D11VideoDevice_CreateVideoProcessorInputView(p->video_dev,
++-                                                         (ID3D11Resource *)d3d_tex,
++-                                                         p->vp_enum, &indesc,
++-                                                         &in_view);
++-    if (FAILED(hr)) {
++-        MP_ERR(vf, "Could not create ID3D11VideoProcessorInputView\n");
+++    in_view = create_input_view(vf, in);
+++    if (!in_view)
++         goto cleanup;
+++
+++    for (int i = p->past_frames; i > 0; i--) {
+++        ID3D11VideoProcessorInputView *v =
+++            create_input_view(vf, mp_refqueue_get(p->queue, -i));
+++        if (v)
+++            past_views[num_past++] = v;
+++    }
+++
+++    for (int i = 1; i <= p->future_frames; i++) {
+++        ID3D11VideoProcessorInputView *v =
+++            create_input_view(vf, mp_refqueue_get(p->queue, i));
+++        if (v)
+++            future_views[num_future++] = v;
++     }
++ 
++     D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outdesc = {
++@@ -468,24 +535,35 @@ static struct mp_image *render(struct mp_filter *vf)
++         goto cleanup;
++     }
++ 
+++    bool half_rate = !mp_refqueue_output_fields(p->queue) && mp_refqueue_should_deint(p->queue);
++     D3D11_VIDEO_PROCESSOR_STREAM stream = {
++         .Enable = TRUE,
++         .pInputSurface = in_view,
+++        .OutputIndex = mp_refqueue_is_second_field(p->queue),
+++        .InputFrameOrField = p->output_seq * (half_rate ? 2 : 1),
+++        .PastFrames = num_past,
+++        .FutureFrames = num_future,
+++        .ppPastSurfaces = num_past ? past_views : NULL,
+++        .ppFutureSurfaces = num_future ? future_views : NULL,
++     };
++-    int frame = mp_refqueue_is_second_field(p->queue);
++     hr = ID3D11VideoContext_VideoProcessorBlt(p->video_ctx, p->video_proc,
++-                                              out_view, frame, 1, &stream);
+++                                              out_view, p->output_seq, 1, &stream);
++     if (FAILED(hr)) {
++         MP_ERR(vf, "VideoProcessorBlt failed.\n");
++         goto cleanup;
++     }
++ 
+++    p->output_seq++;
++     res = 0;
++ cleanup:
++     if (in_view)
++         ID3D11VideoProcessorInputView_Release(in_view);
++     if (out_view)
++         ID3D11VideoProcessorOutputView_Release(out_view);
+++    for (int i = 0; i < num_past; i++)
+++        ID3D11VideoProcessorInputView_Release(past_views[i]);
+++    for (int i = 0; i < num_future; i++)
+++        ID3D11VideoProcessorInputView_Release(future_views[i]);
++     if (res < 0)
++         TA_FREEP(&out);
++     return out;
++@@ -632,10 +710,13 @@ static struct mp_filter *vf_d3d11vpp_create(struct mp_filter *parent,
++ 
++     mp_refqueue_add_in_format(p->queue, IMGFMT_D3D11, 0);
++ 
+++    // Force BLEND mode by not sending ref frames and setting half rate.
+++    bool out_fields = p->opts->mode != D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND;
+++
++     mp_refqueue_set_refs(p->queue, 0, 0);
++     mp_refqueue_set_mode(p->queue,
++         (p->opts->deint_enabled ? MP_MODE_DEINT : 0) |
++-        MP_MODE_OUTPUT_FIELDS |
+++        (out_fields ? MP_MODE_OUTPUT_FIELDS : 0) |
++         (p->opts->interlaced_only ? MP_MODE_INTERLACED_ONLY : 0));
++     mp_refqueue_set_parity(p->queue, p->opts->field_parity);
++ 
+diff --git a/packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch b/packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch
+new file mode 100644
+index 0000000..f4c4302
+--- /dev/null
++++ b/packages/mpv-0005-vf-d3d11vpp-print-supported-custom-rates.patch
+@@ -0,0 +1,29 @@
++From f571fd73a119c74dcdbd988dc07837fb1853b642 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Wed, 18 Feb 2026 05:04:01 +0100
++Subject: [PATCH] vf_d3d11vpp: print supported custom rates
++
++---
++ video/filter/vf_d3d11vpp.c | 9 +++++++++
++ 1 file changed, 9 insertions(+)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 9ec2a1c3e1022..2b6ce3eefdee2 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -296,6 +296,15 @@ static int recreate_video_proc(struct mp_filter *vf)
++                        "itelecine_caps=%#x custom_rate_count=%u\n", marker, n,
++                    rcaps.ProcessorCaps, rcaps.PastFrames, rcaps.FutureFrames,
++                    rcaps.ITelecineCaps, rcaps.CustomRateCount);
+++
+++        for (UINT c = 0; c < rcaps.CustomRateCount; c++) {
+++            D3D11_VIDEO_PROCESSOR_CUSTOM_RATE cr;
+++            if (FAILED(ID3D11VideoProcessorEnumerator_GetVideoProcessorCustomRate(p->vp_enum, n, c, &cr)))
+++                continue;
+++            MP_DBG(vf, "\t%u: custom_rate=%u/%u out_frames=%u in_interlaced=%d in_frames_or_fields=%u\n",
+++                   0, cr.CustomRate.Numerator, cr.CustomRate.Denominator, cr.OutputFrames,
+++                   cr.InputInterlaced, cr.InputFramesOrFields);
+++        }
++     }
++ 
++     if (rindex < 0) {
+diff --git a/packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch b/packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+new file mode 100644
+index 0000000..46d76cb
+--- /dev/null
++++ b/packages/mpv-0006-vf-d3d11vpp-use-half-rate-for-IVTC-mode.patch
+@@ -0,0 +1,67 @@
++From c2c081f49aff2e96eaeabd5d1bbb4051fcdf1538 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Wed, 18 Feb 2026 07:56:15 +0100
++Subject: [PATCH] vf_d3d11vpp: use half-rate for IVTC mode
++
++The optimal way would be to use custom rate based on telecine cadence,
++but it's not supported by any driver in practice. So instead, allow
++driver to field match and output with duplicated frames, which can be
++removed using decimate filter.
++
++Note that in practice all GPU vendors uses single video processor for
++all deinterlacing, so IVTC will be done even if mode is not explicitly
++selected. At least the field matching part, because correct rate output
++is not supported. The main difference is that when selecting more we
++output at video frame rate, not field rate.
++---
++ DOCS/man/vf.rst            | 20 ++++++++++++++++----
++ video/filter/vf_d3d11vpp.c |  5 ++++-
++ 2 files changed, 20 insertions(+), 5 deletions(-)
++
++diff --git a/DOCS/man/vf.rst b/DOCS/man/vf.rst
++index 9f46414fd0c08..4a74edc09c34b 100644
++--- a/DOCS/man/vf.rst
+++++ b/DOCS/man/vf.rst
++@@ -743,10 +743,22 @@ Available mpv-only filters are:
++         If ``yes``, only deinterlace frames marked as interlaced (default: no).
++     ``mode=<blend|bob|adaptive|mocomp|ivtc|none>``
++         Tries to select a video processor with the given processing capability.
++-        If a video processor supports multiple capabilities, it is not clear
++-        which algorithm is actually selected. ``none`` always falls back. On
++-        most if not all hardware, this option will probably do nothing, because
++-        a video processor usually supports all modes or none.
+++        If a video processor supports multiple capabilities, it is not guaranteed
+++        which algorithm will actually be selected, this is left to the driver.
+++        However, ``blend`` and ``bob`` modes are enforced by not passing reference
+++        frames and adjusting the output frame rate. The other modes are used to
+++        select an appropriate video processor, but the algorithm chosen depends
+++        on the driver and the content. ``ivtc`` mode outputs at the half rate.
+++
+++    .. note::
+++
+++        ``ivtc`` mode only performs field matching and does not drop duplicate
+++        frames. Duplicated frames can be removed manually using the ``decimate``
+++        filter: ``--vf=d3d11vpp="deint:mode=ivtc,format=nv12,decimate=5"`` for
+++        3:2 pulldown cadence. ``format=nv12`` is required to download frames back
+++        to the CPU for decimation, the format should match the underlying format
+++        of the d3d11 frame.
+++
++     ``nvidia-true-hdr``
++         Enable NVIDIA RTX Video HDR processing.
++ 
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 2b6ce3eefdee2..65356e9f15d4f 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -720,7 +720,10 @@ static struct mp_filter *vf_d3d11vpp_create(struct mp_filter *parent,
++     mp_refqueue_add_in_format(p->queue, IMGFMT_D3D11, 0);
++ 
++     // Force BLEND mode by not sending ref frames and setting half rate.
++-    bool out_fields = p->opts->mode != D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND;
+++    // Use half rate for IVTC modes, custom rate would be perfect for that,
+++    // but it's not supported by any driver in practice.
+++    bool out_fields = p->opts->mode != D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND &&
+++                      p->opts->mode != D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_INVERSE_TELECINE;
++ 
++     mp_refqueue_set_refs(p->queue, 0, 0);
++     mp_refqueue_set_mode(p->queue,
+diff --git a/packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch b/packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch
+new file mode 100644
+index 0000000..b52821f
+--- /dev/null
++++ b/packages/mpv-0007-vf-d3d11vpp-use-ID3D11VideoContext1-interface-for-.patch
+@@ -0,0 +1,199 @@
++From 568522e69e1e8cd3ee7d4adb2eaf24f329288577 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Thu, 19 Feb 2026 06:27:32 +0100
++Subject: [PATCH] vf_d3d11vpp: use ID3D11VideoContext1 interface for setting
++ color space
++
++This allows to use DXGI enums for color spaces, which supports PQ
++transfers and so on. Old D3D11_VIDEO_PROCESSOR_COLOR_SPACE is limited
++and doesn't support HDR formats.
++---
++ video/filter/vf_d3d11vpp.c    | 41 ++++++++++++----
++ video/out/gpu/d3d11_helpers.c | 89 ++++++++++++++++++++++++++++++++++-
++ video/out/gpu/d3d11_helpers.h |  5 ++
++ 3 files changed, 124 insertions(+), 11 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 65356e9f15d4f..535b3126d4c0b 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -18,6 +18,7 @@
++ #include <assert.h>
++ #include <windows.h>
++ #include <d3d11.h>
+++#include <d3d11_1.h>
++ 
++ #include <libavutil/hwcontext.h>
++ #include <libavutil/hwcontext_d3d11va.h>
++@@ -34,6 +35,7 @@
++ #include "video/hwdec.h"
++ #include "video/mp_image.h"
++ #include "video/mp_image_pool.h"
+++#include "video/out/gpu/d3d11_helpers.h"
++ 
++ // For video processor extensions identifiers reference see:
++ // https://chromium.googlesource.com/chromium/src/+/5f354f38/ui/gl/swap_chain_presenter.cc
++@@ -374,16 +376,35 @@ static int recreate_video_proc(struct mp_filter *vf)
++                                                             D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL,
++                                                          FALSE, 0);
++ 
++-    D3D11_VIDEO_PROCESSOR_COLOR_SPACE csp = {
++-        .YCbCr_Matrix = p->params.repr.sys != PL_COLOR_SYSTEM_BT_601,
++-        .Nominal_Range = p->params.repr.levels == PL_COLOR_LEVELS_LIMITED ? 1 : 2,
++-    };
++-    ID3D11VideoContext_VideoProcessorSetStreamColorSpace(p->video_ctx,
++-                                                         p->video_proc,
++-                                                         0, &csp);
++-    ID3D11VideoContext_VideoProcessorSetOutputColorSpace(p->video_ctx,
++-                                                         p->video_proc,
++-                                                         &csp);
+++    mp_image_params_guess_csp(&p->params);
+++    mp_image_params_guess_csp(&p->out_params);
+++
+++    ID3D11VideoContext1 *video_ctx1;
+++    hr = ID3D11VideoContext_QueryInterface(p->video_ctx, &IID_ID3D11VideoContext1, (void **)&video_ctx1);
+++    if (SUCCEEDED(hr)) {
+++        DXGI_COLOR_SPACE_TYPE in = mp_params_to_dxgi_colorspace(vf->log, &p->params);
+++        DXGI_COLOR_SPACE_TYPE out = mp_params_to_dxgi_colorspace(vf->log, &p->out_params);
+++        if (in != out)
+++            MP_VERBOSE(vf, "Converting %s to %s.\n", d3d11_get_csp_name(in), d3d11_get_csp_name(out));
+++        ID3D11VideoContext1_VideoProcessorSetStreamColorSpace1(video_ctx1,
+++                                                               p->video_proc,
+++                                                               0, in);
+++        ID3D11VideoContext1_VideoProcessorSetOutputColorSpace1(video_ctx1,
+++                                                               p->video_proc,
+++                                                               out);
+++        SAFE_RELEASE(video_ctx1);
+++    } else {
+++        D3D11_VIDEO_PROCESSOR_COLOR_SPACE csp = {
+++            .YCbCr_Matrix = p->params.repr.sys != PL_COLOR_SYSTEM_BT_601,
+++            .Nominal_Range = p->params.repr.levels == PL_COLOR_LEVELS_LIMITED ? 1 : 2,
+++        };
+++        ID3D11VideoContext_VideoProcessorSetStreamColorSpace(p->video_ctx,
+++                                                            p->video_proc,
+++                                                            0, &csp);
+++        ID3D11VideoContext_VideoProcessorSetOutputColorSpace(p->video_ctx,
+++                                                            p->video_proc,
+++                                                            &csp);
+++    }
++ 
++     switch (p->opts->scaling_mode) {
++     case SCALING_INTEL_VSR:
++diff --git a/video/out/gpu/d3d11_helpers.c b/video/out/gpu/d3d11_helpers.c
++index 3ba2b42e9e75c..6e540d50659e4 100644
++--- a/video/out/gpu/d3d11_helpers.c
+++++ b/video/out/gpu/d3d11_helpers.c
++@@ -192,7 +192,7 @@ static const char *d3d11_get_format_name(DXGI_FORMAT fmt)
++     }
++ }
++ 
++-static const char *d3d11_get_csp_name(DXGI_COLOR_SPACE_TYPE csp)
+++const char *d3d11_get_csp_name(DXGI_COLOR_SPACE_TYPE csp)
++ {
++     switch (csp) {
++     D3D11_DXGI_ENUM(DXGI_COLOR_SPACE_, RGB_FULL_G22_NONE_P709);
++@@ -1140,3 +1140,90 @@ void mp_d3d11_get_debug_interfaces(struct mp_log *log, IDXGIDebug **debug,
++         return;
++     }
++ }
+++
+++DXGI_COLOR_SPACE_TYPE mp_params_to_dxgi_colorspace(struct mp_log *log,
+++                                                   const struct mp_image_params *params)
+++{
+++    bool is_rgb  = params->repr.sys == PL_COLOR_SYSTEM_RGB;
+++    bool full    = params->repr.levels == PL_COLOR_LEVELS_FULL;
+++    bool topleft = params->chroma_location == PL_CHROMA_TOP_LEFT;
+++    bool p601    = params->color.primaries == PL_COLOR_PRIM_BT_601_525 ||
+++                   params->color.primaries == PL_COLOR_PRIM_BT_601_625;
+++    bool p2020   = params->color.primaries == PL_COLOR_PRIM_BT_2020;
+++
+++    if (is_rgb) {
+++        switch (params->color.transfer) {
+++        case PL_COLOR_TRC_LINEAR:
+++            return DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
+++        case PL_COLOR_TRC_PQ:
+++            if (!p2020) {
+++                mp_warn(log, "PQ transfer with non-BT.2020 primaries is not "
+++                            "supported by DXGI, using P2020 entry.\n");
+++            }
+++            return full ? DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020
+++                        : DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020;
+++        case PL_COLOR_TRC_GAMMA24:
+++            return p2020 ? DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P2020
+++                         : DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P709;
+++        case PL_COLOR_TRC_HLG:
+++            mp_warn(log, "HLG RGB is not supported by DXGI, "
+++                        "falling back to G22.\n");
+++            MP_FALLTHROUGH;
+++        default:
+++            if (p2020) {
+++                return full ? DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020
+++                            : DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P2020;
+++            }
+++            return full ? DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+++                        : DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709;
+++        }
+++    }
+++
+++    switch (params->color.transfer) {
+++    case PL_COLOR_TRC_PQ:
+++        if (!p2020) {
+++            mp_warn(log, "PQ transfer with non-BT.2020 primaries is not "
+++                         "supported by DXGI, using P2020 entry.\n");
+++        }
+++        if (full) {
+++            mp_warn(log, "Full-range PQ YCbCr is not supported by DXGI, "
+++                         "using studio entry.\n");
+++        }
+++        return topleft ? DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_TOPLEFT_P2020
+++                       : DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_LEFT_P2020;
+++    case PL_COLOR_TRC_HLG:
+++        if (!p2020) {
+++            mp_warn(log, "HLG transfer with non-BT.2020 primaries is not "
+++                         "supported by DXGI, using P2020 entry.\n");
+++        }
+++        return full ? DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020
+++                    : DXGI_COLOR_SPACE_YCBCR_STUDIO_GHLG_TOPLEFT_P2020;
+++    case PL_COLOR_TRC_GAMMA24:
+++        if (full) {
+++            mp_warn(log, "Full-range G24 YCbCr is not supported by DXGI, "
+++                         "using studio entry.\n");
+++        }
+++        if (p2020) {
+++            return topleft ? DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_TOPLEFT_P2020
+++                           : DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P2020;
+++        }
+++        return DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P709;
+++    default:
+++        if (p601) {
+++            return full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601
+++                        : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601;
+++        }
+++        if (p2020) {
+++            if (topleft) {
+++                if (full)
+++                    mp_warn(log, "Full-range top-left chroma BT.2020 G22 is not "
+++                                 "supported by DXGI, using studio entry.\n");
+++                return DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_TOPLEFT_P2020;
+++            }
+++            return full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P2020
+++                        : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P2020;
+++        }
+++        return full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709
+++                    : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709;
+++    }
+++}
++diff --git a/video/out/gpu/d3d11_helpers.h b/video/out/gpu/d3d11_helpers.h
++index d5658d5f5e4f5..669348df1be7a 100644
++--- a/video/out/gpu/d3d11_helpers.h
+++++ b/video/out/gpu/d3d11_helpers.h
++@@ -121,4 +121,9 @@ bool mp_d3d11_create_swapchain(ID3D11Device *dev, struct mp_log *log,
++ void mp_d3d11_get_debug_interfaces(struct mp_log *log, IDXGIDebug **debug,
++                                    IDXGIInfoQueue **iqueue);
++ 
+++const char *d3d11_get_csp_name(DXGI_COLOR_SPACE_TYPE csp);
+++
+++DXGI_COLOR_SPACE_TYPE mp_params_to_dxgi_colorspace(struct mp_log *log,
+++                                                   const struct mp_image_params *params);
+++
++ #endif
+diff --git a/packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch b/packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch
+new file mode 100644
+index 0000000..cc3a0f7
+--- /dev/null
++++ b/packages/mpv-0008-vf-d3d11vpp-add-dots-to-logs.patch
+@@ -0,0 +1,40 @@
++From 43f00135ea62c0ef5f6de886fa7766334da3b11b Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Thu, 19 Feb 2026 06:29:47 +0100
++Subject: [PATCH] vf_d3d11vpp: add dots to logs
++
++---
++ video/filter/vf_d3d11vpp.c | 6 +++---
++ 1 file changed, 3 insertions(+), 3 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 535b3126d4c0b..2e10c926a76a0 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -165,7 +165,7 @@ static void enable_nvidia_rtx_extension(struct mp_filter *vf)
++     if (FAILED(hr)) {
++         MP_WARN(vf, "Failed to enable NVIDIA RTX Super Resolution: %s\n", mp_HRESULT_to_str(hr));
++     } else {
++-        MP_VERBOSE(vf, "NVIDIA RTX Super Resolution enabled\n");
+++        MP_VERBOSE(vf, "NVIDIA RTX Super Resolution enabled.\n");
++     }
++ }
++ 
++@@ -190,7 +190,7 @@ static void enable_nvidia_true_hdr(struct mp_filter *vf)
++     if (FAILED(hr)) {
++         MP_WARN(vf, "Failed to enable NVIDIA RTX Video HDR: %s\n", mp_HRESULT_to_str(hr));
++     } else {
++-        MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled\n");
+++        MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled.\n");
++     }
++ }
++ 
++@@ -231,7 +231,7 @@ static void enable_intel_vsr_extension(struct mp_filter *vf)
++     if (FAILED(hr))
++         goto failed;
++ 
++-    MP_VERBOSE(vf, "Intel Video Super Resolution enabled\n");
+++    MP_VERBOSE(vf, "Intel Video Super Resolution enabled.\n");
++     return;
++ 
++ failed:
+diff --git a/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch b/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
+new file mode 100644
+index 0000000..e4ef6df
+--- /dev/null
++++ b/packages/mpv-0009-vf-d3d11vpp-set-output-format-for-NVIDIA-RTX-Video.patch
+@@ -0,0 +1,130 @@
++From f7ad4a5f8f0552a29d83ae8221a0de92d93353ba Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Thu, 19 Feb 2026 06:44:33 +0100
++Subject: [PATCH] vf_d3d11vpp: set output format for NVIDIA RTX Video HDR
++
++It outputs RGB tone mapped image, set params accordingly.
++
++Fixes: #17265
++---
++ video/filter/vf_d3d11vpp.c | 68 +++++++++++++++++++++++++++++---------
++ 1 file changed, 53 insertions(+), 15 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 2e10c926a76a0..718d81bd3c67a 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -169,10 +169,33 @@ static void enable_nvidia_rtx_extension(struct mp_filter *vf)
++     }
++ }
++ 
++-static void enable_nvidia_true_hdr(struct mp_filter *vf)
+++static bool supports_nvidia_true_hdr(struct mp_filter *vf)
++ {
++     struct priv *p = vf->priv;
++ 
+++    UINT supported = 0;
+++    HRESULT hr = ID3D11VideoContext_VideoProcessorGetStreamExtension(p->video_ctx,
+++                                                                     p->video_proc,
+++                                                                     0,
+++                                                                     &NVIDIA_TRUE_HDR_INTERFACE_GUID,
+++                                                                     sizeof(supported),
+++                                                                     &supported);
+++
+++    if (FAILED(hr) || !supported) {
+++        MP_WARN(vf, "NVIDIA RTX Video HDR not supported.\n");
+++        return false;
+++    }
+++
+++    return true;
+++}
+++
+++static bool enable_nvidia_true_hdr(struct mp_filter *vf)
+++{
+++    struct priv *p = vf->priv;
+++
+++    if (!supports_nvidia_true_hdr(vf))
+++        return false;
+++
++     struct nvidia_ext {
++         unsigned int version;
++         unsigned int method;
++@@ -189,9 +212,11 @@ static void enable_nvidia_true_hdr(struct mp_filter *vf)
++ 
++     if (FAILED(hr)) {
++         MP_WARN(vf, "Failed to enable NVIDIA RTX Video HDR: %s\n", mp_HRESULT_to_str(hr));
++-    } else {
++-        MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled.\n");
+++        return false;
++     }
+++
+++    MP_VERBOSE(vf, "NVIDIA RTX Video HDR enabled.\n");
+++    return true;
++ }
++ 
++ static void enable_intel_vsr_extension(struct mp_filter *vf)
++@@ -376,6 +401,28 @@ static int recreate_video_proc(struct mp_filter *vf)
++                                                             D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL,
++                                                          FALSE, 0);
++ 
+++    if (p->opts->nvidia_true_hdr && enable_nvidia_true_hdr(vf)) {
+++        // NVIDIA RTX Video HDR seems to require BT.2020+PQ RGB output.
+++        p->out_params.color = pl_color_space_hdr10;
+++        p->out_params.color.hdr.max_luma = 1000;
+++        MP_WARN(vf, "Tagging image output as HDR with max-luma=1000 nits for "
+++                    "NVIDIA RTX Video HDR. This is only a guess. "
+++                    "Adjust the value to match NVIDIA settings with "
+++                    "`--vf-add=format=max-luma=<value>`.\n");
+++        const enum mp_imgfmt output_format = IMGFMT_X2BGR10;
+++        if (p->opts->format) {
+++            // Don't override user choice, even if it might break output.
+++            if (p->out_params.hw_subfmt != output_format) {
+++                MP_WARN(vf, "Requested %s format is not supported for NVIDIA RTX Video HDR. "
+++                            "Consider using %s instead or leave it unspecified.\n",
+++                        mp_imgfmt_to_name(p->opts->format),
+++                        mp_imgfmt_to_name(output_format));
+++            }
+++        } else {
+++            p->out_params.hw_subfmt = output_format;
+++        }
+++    }
+++
++     mp_image_params_guess_csp(&p->params);
++     mp_image_params_guess_csp(&p->out_params);
++ 
++@@ -415,9 +462,6 @@ static int recreate_video_proc(struct mp_filter *vf)
++         break;
++     }
++ 
++-    if (p->opts->nvidia_true_hdr)
++-        enable_nvidia_true_hdr(vf);
++-
++     return 0;
++ fail:
++     destroy_video_proc(vf);
++@@ -502,12 +546,8 @@ static struct mp_image *render(struct mp_filter *vf)
++     ID3D11Texture2D *d3d_tex = (void *)in->planes[0];
++ 
++     mp_image_copy_attributes(out, in);
++-    // mp_image_copy_attributes overwrites the height and width
++-    // set it the size back if we are using scale
++-    mp_image_set_size(out, p->out_params.w, p->out_params.h);
++-    // mp_image_copy_attributes will set the crop value to the origin
++-    // width and height, set the crop back to the default state
++-    out->params.crop = p->out_params.crop;
+++    // TODO: sanitize out_params based the processing enabled.
+++    out->params = p->out_params;
++ 
++     D3D11_VIDEO_FRAME_FORMAT d3d_frame_format;
++     if (!mp_refqueue_should_deint(p->queue)) {
++@@ -623,9 +663,7 @@ static void vf_d3d11vpp_process(struct mp_filter *vf)
++         if (p->opts->format)
++             p->out_params.hw_subfmt = p->opts->format;
++ 
++-        p->require_filtering = p->params.hw_subfmt != p->out_params.hw_subfmt ||
++-                               p->params.w != p->out_params.w ||
++-                               p->params.h != p->out_params.h ||
+++        p->require_filtering = !mp_image_params_static_equal(&p->params, &p->out_params) ||
++                                p->opts->nvidia_true_hdr;
++     }
++ 
+diff --git a/packages/mpv-0010-vf-d3d11vpp-allow-more-future-past-frames.patch b/packages/mpv-0010-vf-d3d11vpp-allow-more-future-past-frames.patch
+new file mode 100644
+index 0000000..0610eaa
+--- /dev/null
++++ b/packages/mpv-0010-vf-d3d11vpp-allow-more-future-past-frames.patch
+@@ -0,0 +1,147 @@
++From 85f9e6f27432568f3c0233ad95b61cdec0a2e545 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Tue, 10 Mar 2026 18:01:38 +0100
++Subject: [PATCH] vf_d3d11vpp: allow more future/past frames
++
++Apparently some video processors request 15-20 future frames.
++
++Fixes: https://github.com/mpv-player/mpv/pull/17413#issuecomment-4032784635
++---
++ video/filter/vf_d3d11vpp.c | 54 +++++++++++++++++---------------------
++ 1 file changed, 24 insertions(+), 30 deletions(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 718d81bd3c67a..9504d05f4c243 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -117,14 +117,14 @@ struct priv {
++ 
++     struct mp_refqueue *queue;
++ 
++-    UINT past_frames;
++-    UINT future_frames;
+++    UINT num_past_views;
+++    ID3D11VideoProcessorInputView **past_views;
+++    UINT num_future_views;
+++    ID3D11VideoProcessorInputView **future_views;
++ 
++     UINT output_seq;
++ };
++ 
++-#define D3D11VPP_MAX_FRAMES 4
++-
++ static void flush_frames(struct mp_filter *vf)
++ {
++     struct priv *p = vf->priv;
++@@ -347,22 +347,20 @@ static int recreate_video_proc(struct mp_filter *vf)
++         goto fail;
++     }
++ 
++-    p->past_frames = MPMIN(rc_caps.PastFrames, D3D11VPP_MAX_FRAMES);
++-    p->future_frames = MPMIN(rc_caps.FutureFrames, D3D11VPP_MAX_FRAMES);
+++    p->num_past_views = rc_caps.PastFrames;
+++    if (p->num_past_views)
+++        MP_TARRAY_GROW(p, p->past_views, p->num_past_views - 1);
++ 
++-    if (p->past_frames < rc_caps.PastFrames || p->future_frames < rc_caps.FutureFrames) {
++-        // No implementation should need more than D3D11VPP_MAX_FRAMES in practice.
++-        MP_ERR(vf, "Processor requested %u past frames and %u future frames, "
++-                   "but only %u/%u are supported. Please report an issue.\n",
++-               rc_caps.PastFrames, rc_caps.FutureFrames, p->past_frames, p->future_frames);
++-    }
+++    p->num_future_views = rc_caps.FutureFrames;
+++    if (p->num_future_views)
+++        MP_TARRAY_GROW(p, p->future_views, p->num_future_views - 1);
++ 
++     // Force BOB if requested by user, this doesn't really make much sense, but
++     // since we have an option, just allow to not use any ref frames.
++     if (mode == D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BOB ||
++         mode == D3D11_VIDEO_PROCESSOR_PROCESSOR_CAPS_DEINTERLACE_BLEND) {
++-        p->past_frames = 0;
++-        p->future_frames = 0;
+++        p->num_past_views = 0;
+++        p->num_future_views = 0;
++         // Warn explicitly here, because forcing unsupported mode will cause
++         // obviously wrong result.
++         if ((rc_caps.ProcessorCaps & mode) != mode) {
++@@ -372,7 +370,7 @@ static int recreate_video_proc(struct mp_filter *vf)
++         }
++     }
++ 
++-    mp_refqueue_set_refs(p->queue, p->past_frames, p->future_frames);
+++    mp_refqueue_set_refs(p->queue, p->num_past_views, p->num_future_views);
++ 
++     // Note: libavcodec does not support cropping left/top with hwaccel.
++     RECT src_rc = {
++@@ -390,7 +388,7 @@ static int recreate_video_proc(struct mp_filter *vf)
++ 
++     bool half_rate = !mp_refqueue_output_fields(p->queue) && mp_refqueue_should_deint(p->queue);
++     MP_DBG(vf, "Using %u past and %u future frames for processing at %s rate.\n",
++-           p->past_frames, p->future_frames, half_rate ? "half" : "normal");
+++           p->num_past_views, p->num_future_views, half_rate ? "half" : "normal");
++     // None of the major GPU vendors seem to support custom rates for proper
++     // IVTC frame dropping. Only frame reconstruction is supported.
++     ID3D11VideoContext_VideoProcessorSetStreamOutputRate(p->video_ctx,
++@@ -528,9 +526,7 @@ static struct mp_image *render(struct mp_filter *vf)
++     struct mp_image *in = NULL, *out = NULL;
++ 
++     UINT num_past = 0;
++-    ID3D11VideoProcessorInputView *past_views[D3D11VPP_MAX_FRAMES] = {0};
++     UINT num_future = 0;
++-    ID3D11VideoProcessorInputView *future_views[D3D11VPP_MAX_FRAMES] = {0};
++ 
++     out = alloc_out(vf);
++     if (!out) {
++@@ -579,18 +575,18 @@ static struct mp_image *render(struct mp_filter *vf)
++     if (!in_view)
++         goto cleanup;
++ 
++-    for (int i = p->past_frames; i > 0; i--) {
+++    for (int i = p->num_past_views; i > 0; i--) {
++         ID3D11VideoProcessorInputView *v =
++             create_input_view(vf, mp_refqueue_get(p->queue, -i));
++         if (v)
++-            past_views[num_past++] = v;
+++            p->past_views[num_past++] = v;
++     }
++ 
++-    for (int i = 1; i <= p->future_frames; i++) {
+++    for (int i = 1; i <= p->num_future_views; i++) {
++         ID3D11VideoProcessorInputView *v =
++             create_input_view(vf, mp_refqueue_get(p->queue, i));
++         if (v)
++-            future_views[num_future++] = v;
+++            p->future_views[num_future++] = v;
++     }
++ 
++     D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outdesc = {
++@@ -613,8 +609,8 @@ static struct mp_image *render(struct mp_filter *vf)
++         .InputFrameOrField = p->output_seq * (half_rate ? 2 : 1),
++         .PastFrames = num_past,
++         .FutureFrames = num_future,
++-        .ppPastSurfaces = num_past ? past_views : NULL,
++-        .ppFutureSurfaces = num_future ? future_views : NULL,
+++        .ppPastSurfaces = num_past ? p->past_views : NULL,
+++        .ppFutureSurfaces = num_future ? p->future_views : NULL,
++     };
++     hr = ID3D11VideoContext_VideoProcessorBlt(p->video_ctx, p->video_proc,
++                                               out_view, p->output_seq, 1, &stream);
++@@ -626,14 +622,12 @@ static struct mp_image *render(struct mp_filter *vf)
++     p->output_seq++;
++     res = 0;
++ cleanup:
++-    if (in_view)
++-        ID3D11VideoProcessorInputView_Release(in_view);
++-    if (out_view)
++-        ID3D11VideoProcessorOutputView_Release(out_view);
+++    SAFE_RELEASE(in_view);
+++    SAFE_RELEASE(out_view);
++     for (int i = 0; i < num_past; i++)
++-        ID3D11VideoProcessorInputView_Release(past_views[i]);
+++        SAFE_RELEASE(p->past_views[i]);
++     for (int i = 0; i < num_future; i++)
++-        ID3D11VideoProcessorInputView_Release(future_views[i]);
+++        SAFE_RELEASE(p->future_views[i]);
++     if (res < 0)
++         TA_FREEP(&out);
++     return out;
+diff --git a/packages/mpv-0011-vf-d3d11vpp-fix-print-index-value.patch b/packages/mpv-0011-vf-d3d11vpp-fix-print-index-value.patch
+new file mode 100644
+index 0000000..d7eb0d6
+--- /dev/null
++++ b/packages/mpv-0011-vf-d3d11vpp-fix-print-index-value.patch
+@@ -0,0 +1,22 @@
++From e7d3fe86685289d792d13c0f6ffe34bdba361e37 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sun, 19 Apr 2026 22:53:54 +0200
++Subject: [PATCH] vf_d3d11vpp: fix print index value
++
++---
++ video/filter/vf_d3d11vpp.c | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/video/filter/vf_d3d11vpp.c b/video/filter/vf_d3d11vpp.c
++index 9504d05f4c243..786d620ab215e 100644
++--- a/video/filter/vf_d3d11vpp.c
+++++ b/video/filter/vf_d3d11vpp.c
++@@ -329,7 +329,7 @@ static int recreate_video_proc(struct mp_filter *vf)
++             if (FAILED(ID3D11VideoProcessorEnumerator_GetVideoProcessorCustomRate(p->vp_enum, n, c, &cr)))
++                 continue;
++             MP_DBG(vf, "\t%u: custom_rate=%u/%u out_frames=%u in_interlaced=%d in_frames_or_fields=%u\n",
++-                   0, cr.CustomRate.Numerator, cr.CustomRate.Denominator, cr.OutputFrames,
+++                   c, cr.CustomRate.Numerator, cr.CustomRate.Denominator, cr.OutputFrames,
++                    cr.InputInterlaced, cr.InputFramesOrFields);
++         }
++     }
+diff --git a/packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch b/packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch
+new file mode 100644
+index 0000000..0ed7a12
+--- /dev/null
++++ b/packages/mpv-0012-hwdec_d3d11egl-fix-EGL_EXT_device_query-availability-check.patch
+@@ -0,0 +1,33 @@
++From 1d15686142fd5d53c954aab7526cedab05ef9dc3 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Fri, 31 Jul 2026 13:21:52 +0200
++Subject: [PATCH] hwdec_d3d11egl: fix EGL_EXT_device_query availability check
++
++After ANGLE commit 56663dbfa780 EGL_EXT_device_query is listed in the
++client extension string instead of the display one. The display string
++check always failed, silently disabling native d3d11va interop.
++
++This fixes `hwdec` with `gpu-context=angle`.
++---
++ video/out/opengl/hwdec_d3d11egl.c | 4 +++-
++ 1 file changed, 3 insertions(+), 1 deletion(-)
++
++diff --git a/video/out/opengl/hwdec_d3d11egl.c b/video/out/opengl/hwdec_d3d11egl.c
++index 50fcf5a6648ec..90a6cee4ce351 100644
++--- a/video/out/opengl/hwdec_d3d11egl.c
+++++ b/video/out/opengl/hwdec_d3d11egl.c
++@@ -101,11 +101,13 @@ static int init(struct ra_hwdec *hw)
++     GL *gl = ra_gl_get(hw->ra_ctx->ra);
++ 
++     const char *exts = eglQueryString(egl_display, EGL_EXTENSIONS);
+++    const char *client_exts = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
++     if (!gl_check_extension(exts, "EGL_ANGLE_d3d_share_handle_client_buffer") ||
++         !gl_check_extension(exts, "EGL_ANGLE_stream_producer_d3d_texture") ||
++         !(gl_check_extension(gl->extensions, "GL_OES_EGL_image_external_essl3") ||
++           gl->es == 200) ||
++-        !gl_check_extension(exts, "EGL_EXT_device_query") ||
+++        !(gl_check_extension(exts, "EGL_EXT_device_query") ||
+++          gl_check_extension(client_exts, "EGL_EXT_device_query")) ||
++         !(gl->mpgl_caps & MPGL_CAP_TEX_RG))
++         return -1;
++ 
+diff --git a/packages/mpv.cmake b/packages/mpv.cmake
+index a2954d5..051e4d7 100644
+--- a/packages/mpv.cmake
++++ b/packages/mpv.cmake
+@@ -1,34 +1,29 @@
++# visiv LGPL build: mpv mit -Dgpl=false (LGPL-2.1+), gebaut als libmpv-2.dll (+ mpv.exe nur zum Testen).
++# Entfernt gegenueber shinchiro: dvdnav/dvdread (GPL), rubberband (GPL), vapoursynth, luajit/lua,
++# libsdl2, openal-soft, libarchive, libbluray, subrandr (Rust), libsixel, curl, vulkan.
++# Patches mpv-00*.patch: Rueckportierungen aus mpv master (d3d11vpp-Deinterlacing-Korrekturen Feb-Apr 2026,
++# hwdec_d3d11egl-Korrektur Jul 2026, noetig fuer d3d11va ohne Kopie im ANGLE/OpenGL-Pfad von media_kit).
+ ExternalProject_Add(mpv
+     DEPENDS
+         angle-headers
+         ffmpeg
+         fribidi
+         lcms2
+-        libarchive
+         libass
+-        libdvdnav
+-        libdvdread
+         libiconv
+         libjpeg
+-        libpng
+-        luajit
+-        rubberband
++        libzimg
+         uchardet
+-        openal-soft
+         mujs
+-        vulkan
+         shaderc
+         libplacebo
+         spirv-cross
+-        vapoursynth
+-        libsdl2
+-        subrandr
+-        libsixel
+-        curl
+     GIT_REPOSITORY https://github.com/mpv-player/mpv.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG v0.41.0
+     GIT_CLONE_FLAGS "--filter=tree:0"
+     UPDATE_COMMAND ""
++    PATCH_COMMAND ${EXEC} git am --3way ${CMAKE_CURRENT_SOURCE_DIR}/mpv-*.patch
+     CONFIGURE_COMMAND ${EXEC} CONF=1 meson setup <BINARY_DIR> <SOURCE_DIR>
+         --prefix=${MINGW_INSTALL_PREFIX}
+         --libdir=${MINGW_INSTALL_PREFIX}/lib
+@@ -40,25 +35,41 @@ ExternalProject_Add(mpv
+         -Doptimization=3
+         -Db_lto=true
+         ${mpv_lto_mode}
++        -Dgpl=false
+         -Dlibmpv=true
+-        -Dpdf-build=enabled
+-        -Dlua=enabled
++        -Dcplayer=true
++        -Dtests=false
++        -Dpdf-build=disabled
++        -Dhtml-build=disabled
++        -Dmanpage-build=disabled
++        -Dlua=disabled
+         -Djavascript=enabled
+-        -Dsdl2-gamepad=enabled
+-        -Dlibarchive=enabled
+-        -Dlibbluray=enabled
+-        -Ddvdnav=enabled
++        -Dlibarchive=disabled
++        -Dlibbluray=disabled
++        -Ddvdnav=disabled
++        -Dcdda=disabled
++        -Drubberband=disabled
++        -Dvapoursynth=disabled
++        -Dsdl2-gamepad=disabled
++        -Dsdl2-audio=disabled
++        -Dsdl2-video=disabled
++        -Dopenal=disabled
++        -Dsixel=disabled
++        -Dlibavdevice=disabled
+         -Duchardet=enabled
+-        -Drubberband=enabled
++        -Diconv=enabled
+         -Dlcms2=enabled
+-        -Dopenal=enabled
++        -Djpeg=enabled
++        -Dzimg=enabled
++        -Dzlib=enabled
+         -Dspirv-cross=enabled
+-        -Dvulkan=enabled
+-        -Dvapoursynth=enabled
+-        -Dsubrandr=enabled
+-        -Dsixel=enabled
++        -Dshaderc=enabled
++        -Dvulkan=disabled
++        -Dd3d11=enabled
++        -Dd3d-hwaccel=enabled
++        -Dd3d9-hwaccel=enabled
++        -Dwasapi=enabled
+         ${mpv_gl}
+-        -Dlibcurl=enabled
+         -Dc_args='-Wno-error=int-conversion'
+     BUILD_COMMAND ${EXEC} LTO_JOB=1 PDB=1 ninja -C <BINARY_DIR>
+     INSTALL_COMMAND ""
+@@ -67,50 +78,24 @@ ExternalProject_Add(mpv
+ 
+ ExternalProject_Add_Step(mpv strip-binary
+     DEPENDEES build
++    COMMAND ${EXEC} ${TARGET_ARCH}-objcopy --only-keep-debug <BINARY_DIR>/libmpv-2.dll <BINARY_DIR>/libmpv-2.debug
+     ${mpv_add_debuglink}
+     COMMENT "Stripping mpv binaries"
+ )
+ 
+ ExternalProject_Add_Step(mpv copy-binary
+     DEPENDEES strip-binary
+-    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/mpv.exe                           ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/mpv.exe
+-    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/mpv.com                           ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/mpv.com
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/etc/mpv-register.bat              ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/mpv-register.bat
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/etc/mpv-unregister.bat            ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/mpv-unregister.bat
+-    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/mpv.pdf                           ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/doc/manual.pdf
+-    COMMAND ${CMAKE_COMMAND} -E copy ${MINGW_INSTALL_PREFIX}/etc/fonts/fonts.conf   ${CMAKE_CURRENT_BINARY_DIR}/mpv-package/mpv/fonts.conf
+-    ${mpv_copy_debug}
+-    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/libmpv-2.dll          ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/libmpv-2.dll
+-    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/libmpv.dll.a          ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/libmpv.dll.a
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/client.h       ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/include/mpv/client.h
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/stream_cb.h    ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/include/mpv/stream_cb.h
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/render.h       ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/include/mpv/render.h
+-    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/render_gl.h    ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev/include/mpv/render_gl.h
+-    COMMENT "Copying mpv binaries and manual"
+-)
+-
+-set(RENAME ${CMAKE_CURRENT_BINARY_DIR}/mpv-prefix/src/rename.sh)
+-file(WRITE ${RENAME}
+-"#!/bin/bash
+-cd $1
+-GIT=$(git rev-parse --short=10 HEAD)
+-mv $2 $2-git-\${GIT}")
+-
+-ExternalProject_Add_Step(mpv copy-package-dir
+-    DEPENDEES copy-binary
+-    COMMAND chmod 755 ${RENAME}
+-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/mpv-package ${CMAKE_BINARY_DIR}/mpv-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-    COMMAND ${RENAME} <SOURCE_DIR> ${CMAKE_BINARY_DIR}/mpv-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-
+-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/mpv-debug ${CMAKE_BINARY_DIR}/mpv-debug-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-    COMMAND ${RENAME} <SOURCE_DIR> ${CMAKE_BINARY_DIR}/mpv-debug-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-
+-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/mpv-dev ${CMAKE_BINARY_DIR}/mpv-dev-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-    COMMAND ${RENAME} <SOURCE_DIR> ${CMAKE_BINARY_DIR}/mpv-dev-${TARGET_CPU}${x86_64_LEVEL}-${BUILDDATE}
+-    COMMENT "Moving mpv package folder"
+-    LOG 1
++    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/mpv.exe                    ${CMAKE_BINARY_DIR}/mpv-test/mpv.exe
++    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/mpv.com                    ${CMAKE_BINARY_DIR}/mpv-test/mpv.com
++    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/libmpv-2.dll               ${CMAKE_BINARY_DIR}/mpv-dev/libmpv-2.dll
++    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/libmpv.dll.a               ${CMAKE_BINARY_DIR}/mpv-dev/libmpv.dll.a
++    COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/libmpv-2.debug             ${CMAKE_BINARY_DIR}/mpv-debug/libmpv-2.debug
++    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/client.h       ${CMAKE_BINARY_DIR}/mpv-dev/include/mpv/client.h
++    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/stream_cb.h    ${CMAKE_BINARY_DIR}/mpv-dev/include/mpv/stream_cb.h
++    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/render.h       ${CMAKE_BINARY_DIR}/mpv-dev/include/mpv/render.h
++    COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/include/mpv/render_gl.h    ${CMAKE_BINARY_DIR}/mpv-dev/include/mpv/render_gl.h
++    COMMENT "Copying mpv binaries"
+ )
+ 
+ force_rebuild_git(mpv)
+ force_meson_configure(mpv)
+-cleanup(mpv copy-package-dir)
+diff --git a/toolchain/gcc/gcc.cmake b/toolchain/gcc/gcc.cmake
+index 964d6d0..03d5744 100644
+--- a/toolchain/gcc/gcc.cmake
++++ b/toolchain/gcc/gcc.cmake
+@@ -33,7 +33,6 @@ ExternalProject_Add_Step(gcc final
+         mingw-w64-crt
+         winpthreads
+         gendef
+-        rustup
+         cppwinrt
+     COMMAND ${MAKE}
+     COMMAND ${MAKE} install-strip
+-- 
+2.43.0
+

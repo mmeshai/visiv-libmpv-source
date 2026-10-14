@@ -1,0 +1,344 @@
+From f1eba13fa4965eca07ffeb368e655a3b03382616 Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Wed, 30 Sep 2026 21:26:07 +0200
+Subject: [PATCH 3/7] visiv: FFmpeg release/8.1 (29e619e767) +
+ HTTP-Seek-Korrekturen aus master
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ ...tp-make-short-seek-logic-more-robust.patch | 37 ++++++++++++
+ ...-return-EOF-unless-we-actually-read-.patch | 27 +++++++++
+ ...perly-fall-back-on-soft-seek-failure.patch | 47 +++++++++++++++
+ ...-default-s-willclose-based-on-reques.patch | 57 ++++++++++++++++++
+ ...t-case-insensitive-Connection-header.patch | 28 +++++++++
+ ...t-a-Content-Range-whose-end-lies-bef.patch | 59 +++++++++++++++++++
+ packages/ffmpeg.cmake                         |  6 +-
+ 7 files changed, 260 insertions(+), 1 deletion(-)
+ create mode 100644 packages/ffmpeg-0001-avformat-http-make-short-seek-logic-more-robust.patch
+ create mode 100644 packages/ffmpeg-0002-avformat-http-don-t-return-EOF-unless-we-actually-read-.patch
+ create mode 100644 packages/ffmpeg-0003-avformat-http-properly-fall-back-on-soft-seek-failure.patch
+ create mode 100644 packages/ffmpeg-0004-avformat-http-infer-default-s-willclose-based-on-reques.patch
+ create mode 100644 packages/ffmpeg-0005-avformat-http-accept-case-insensitive-Connection-header.patch
+ create mode 100644 packages/ffmpeg-0006-avformat-http-reject-a-Content-Range-whose-end-lies-bef.patch
+
+diff --git a/packages/ffmpeg-0001-avformat-http-make-short-seek-logic-more-robust.patch b/packages/ffmpeg-0001-avformat-http-make-short-seek-logic-more-robust.patch
+new file mode 100644
+index 0000000..8c59dac
+--- /dev/null
++++ b/packages/ffmpeg-0001-avformat-http-make-short-seek-logic-more-robust.patch
+@@ -0,0 +1,37 @@
++From 557ab6f2abe3dba995a66643fb6c200d058b8eea Mon Sep 17 00:00:00 2001
++From: Niklas Haas <git@haasn.dev>
++Date: Sun, 14 Jun 2026 12:34:34 +0200
++Subject: [PATCH] avformat/http: make short-seek logic more robust
++
++This avoids an underflow if short_seek is negative (which can happen if e.g.
++ffurl_get_short_seek() returns AVERROR(ENOSYS)), as well as a possible
++underflow if the read position is somehow past `range_end` (e.g. if the HTTP
++server malicously lied about the content range but gave us more bytes anyway)
++
++Sponsored-by: nxtedition AB
++Signed-off-by: Niklas Haas <git@haasn.dev>
++---
++ libavformat/http.c | 10 ++++++++--
++ 1 file changed, 8 insertions(+), 2 deletions(-)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index a0d84e5b09334..e0dac4f8f8695 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -2143,8 +2143,14 @@ static int64_t http_seek_internal(URLContext *h, int64_t off, int whence, int fo
++     memcpy(old_buf, s->buf_ptr, old_buf_size);
++ 
++     /* try to reuse existing connection for small seeks */
++-    uint64_t remaining = s->range_end - old_off - old_buf_size;
++-    if (s->hd && !s->willclose && s->range_end && remaining <= ffurl_get_short_seek(h)) {
+++    int short_seek = ffurl_get_short_seek(h);
+++    uint64_t old_read_pos = old_off + old_buf_size;
+++    if (s->hd && !s->willclose && s->range_end && short_seek > 0 &&
+++        old_read_pos + short_seek >= s->range_end)
+++    {
+++        uint64_t remaining = s->range_end - old_read_pos;
+++        av_assert1(remaining <= short_seek);
+++
++         /* drain remaining data left on the wire from previous request */
++         av_log(h, AV_LOG_DEBUG, "Soft-seeking to offset %"PRIu64" by draining "
++                "%"PRIu64" remaining byte(s)\n", s->off, remaining);
+diff --git a/packages/ffmpeg-0002-avformat-http-don-t-return-EOF-unless-we-actually-read-.patch b/packages/ffmpeg-0002-avformat-http-don-t-return-EOF-unless-we-actually-read-.patch
+new file mode 100644
+index 0000000..f15d3e0
+--- /dev/null
++++ b/packages/ffmpeg-0002-avformat-http-don-t-return-EOF-unless-we-actually-read-.patch
+@@ -0,0 +1,27 @@
++From 62006041cc3b4e4a5161711bf38e1020d21cd2f8 Mon Sep 17 00:00:00 2001
++From: Niklas Haas <git@haasn.dev>
++Date: Sun, 14 Jun 2026 12:53:36 +0200
++Subject: [PATCH] avformat/http: don't return EOF unless we actually read all
++ bytes
++
++Otherwise, this masquerades failure due to I/O as legitimate EOFs.
++
++Sponsored-by: nxtedition AB
++Signed-off-by: Niklas Haas <git@haasn.dev>
++---
++ libavformat/http.c | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index e0dac4f8f8695..30748bb28d7a3 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -1834,7 +1834,7 @@ static int http_read_stream(URLContext *h, uint8_t *buf, int size)
++     int conn_attempts = 1;
++ 
++     if (!s->hd)
++-        return AVERROR_EOF;
+++        return s->off < s->filesize ? AVERROR(EIO) : AVERROR_EOF;
++ 
++     if (s->end_chunked_post && !s->end_header) {
++         err = http_read_header(h);
+diff --git a/packages/ffmpeg-0003-avformat-http-properly-fall-back-on-soft-seek-failure.patch b/packages/ffmpeg-0003-avformat-http-properly-fall-back-on-soft-seek-failure.patch
+new file mode 100644
+index 0000000..42a6df8
+--- /dev/null
++++ b/packages/ffmpeg-0003-avformat-http-properly-fall-back-on-soft-seek-failure.patch
+@@ -0,0 +1,47 @@
++From f87323a35994ffb833945c6e67029c74629ed704 Mon Sep 17 00:00:00 2001
++From: Niklas Haas <git@haasn.dev>
++Date: Sun, 14 Jun 2026 13:03:34 +0200
++Subject: [PATCH] avformat/http: properly fall back on soft seek failure
++
++If the HTTP server still has stale bytes in the TCP receive buffer, but
++the underlying conection was already closed, then the http_open_cnx()
++call might fail even though we successfully drained the previous request.
++
++In this case, there is no proper fallback to a new connection, leading to
++sudden truncation.
++
++Sponsored-by: nxtedition AB
++Signed-off-by: Niklas Haas <git@haasn.dev>
++---
++ libavformat/http.c | 11 +++++++++++
++ 1 file changed, 11 insertions(+)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index ce98c01ae40fc..3d0656d046bd2 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -2163,6 +2163,15 @@ static int64_t http_seek_internal(URLContext *h, int64_t off, int whence, int fo
++             }
++             remaining -= ret;
++         }
+++
+++        ret = http_open_cnx(h, &options);
+++        if (ret >= 0) {
+++            goto done;
+++        } else {
+++            /* fall back to normal reconnection */
+++            ffurl_closep(&s->hd);
+++            old_hd = NULL;
+++        }
++     } else {
++         /* can't soft seek; always open new connection */
++         old_hd = s->hd;
++@@ -2181,6 +2190,8 @@ static int64_t http_seek_internal(URLContext *h, int64_t off, int whence, int fo
++         av_dict_free(&options);
++         return ret;
++     }
+++
+++done:
++     av_dict_free(&options);
++     ffurl_close(old_hd);
++     return off;
+diff --git a/packages/ffmpeg-0004-avformat-http-infer-default-s-willclose-based-on-reques.patch b/packages/ffmpeg-0004-avformat-http-infer-default-s-willclose-based-on-reques.patch
+new file mode 100644
+index 0000000..48e6c24
+--- /dev/null
++++ b/packages/ffmpeg-0004-avformat-http-infer-default-s-willclose-based-on-reques.patch
+@@ -0,0 +1,57 @@
++From bd51105806db2f52ec4e37c3196404b7f831caf8 Mon Sep 17 00:00:00 2001
++From: Niklas Haas <git@haasn.dev>
++Date: Tue, 23 Jun 2026 20:37:32 +0200
++Subject: [PATCH] avformat/http: infer default s->willclose based on request
++ header
++
++If we send `Connection: close` but don't get any response Connection header
++back from the HTTP server, we should still assume the server will close our
++connection.
++
++There is a minor bit of ambiguity about what state to assume if the user
++overrode the "Connection:" header, but I'm optimistically leaning in
++favor of keep-alive as the more likely value for a user to set.
++
++Not updating our internal state tracking as a result of user-provided
++headers overriding our own headers is a prior problem with http.c that is
++outside the scope of this PR to fix.
++
++Signed-off-by: Niklas Haas <git@haasn.dev>
++---
++ libavformat/http.c | 9 ++++++---
++ 1 file changed, 6 insertions(+), 3 deletions(-)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index 3d0656d046bd2..d74ed38b39f9d 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -1536,6 +1536,7 @@ static int http_connect(URLContext *h, const char *path, const char *local_path,
++     uint64_t off = s->off;
++     const char *method;
++     int send_expect_100 = 0;
+++    int keep_alive = 1;
++ 
++     av_bprint_init_for_buffer(&request, s->buffer, sizeof(s->buffer));
++ 
++@@ -1612,8 +1613,10 @@ static int http_connect(URLContext *h, const char *path, const char *local_path,
++     if (send_expect_100 && !has_header(s->headers, "\r\nExpect: "))
++         av_bprintf(&request, "Expect: 100-continue\r\n");
++ 
++-    if (!has_header(s->headers, "\r\nConnection: "))
++-        av_bprintf(&request, "Connection: %s\r\n", s->multiple_requests ? "keep-alive" : "close");
+++    if (!has_header(s->headers, "\r\nConnection: ")) {
+++        keep_alive = s->multiple_requests;
+++        av_bprintf(&request, "Connection: %s\r\n", keep_alive ? "keep-alive" : "close");
+++    }
++ 
++     if (!has_header(s->headers, "\r\nHost: "))
++         av_bprintf(&request, "Host: %s\r\n", hoststr);
++@@ -1665,7 +1668,7 @@ static int http_connect(URLContext *h, const char *path, const char *local_path,
++     s->icy_data_read    = 0;
++     s->filesize         = UINT64_MAX;
++     s->range_end        = 0;
++-    s->willclose        = 0;
+++    s->willclose        = !keep_alive;
++     s->end_chunked_post = 0;
++     s->end_header       = 0;
++ #if CONFIG_ZLIB
+diff --git a/packages/ffmpeg-0005-avformat-http-accept-case-insensitive-Connection-header.patch b/packages/ffmpeg-0005-avformat-http-accept-case-insensitive-Connection-header.patch
+new file mode 100644
+index 0000000..44c3ba7
+--- /dev/null
++++ b/packages/ffmpeg-0005-avformat-http-accept-case-insensitive-Connection-header.patch
+@@ -0,0 +1,28 @@
++From e5a3c5e409f2f5cbf94cb1cc7dbae5750dc8efc7 Mon Sep 17 00:00:00 2001
++From: Niklas Haas <git@haasn.dev>
++Date: Tue, 9 Jun 2026 12:37:04 +0200
++Subject: [PATCH] avformat/http: accept case-insensitive Connection header
++ value
++
++RFC 9110 defines this as case-insensitive, and some servers (e.g. MythTV)
++send it as "Close" instead of "close".
++
++See-Also: https://code.ffmpeg.org/FFmpeg/FFmpeg/issues/23222
++Signed-off-by: Niklas Haas <git@haasn.dev>
++---
++ libavformat/http.c | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index d74ed38b39f9d..015a150716fa3 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -1293,7 +1293,7 @@ static int process_line(URLContext *h, char *line, int line_count, int *parsed_h
++         } else if (!av_strcasecmp(tag, "Proxy-Authenticate")) {
++             ff_http_auth_handle_header(&s->proxy_auth_state, tag, p);
++         } else if (!av_strcasecmp(tag, "Connection")) {
++-            if (!strcmp(p, "close"))
+++            if (!av_strcasecmp(p, "close"))
++                 s->willclose = 1;
++         } else if (!av_strcasecmp(tag, "Server")) {
++             if (!av_strcasecmp(p, "AkamaiGHost")) {
+diff --git a/packages/ffmpeg-0006-avformat-http-reject-a-Content-Range-whose-end-lies-bef.patch b/packages/ffmpeg-0006-avformat-http-reject-a-Content-Range-whose-end-lies-bef.patch
+new file mode 100644
+index 0000000..d9c96f0
+--- /dev/null
++++ b/packages/ffmpeg-0006-avformat-http-reject-a-Content-Range-whose-end-lies-bef.patch
+@@ -0,0 +1,59 @@
++From 2ff5405601e1bc9bb17ae3403bc1cf9942b1bc96 Mon Sep 17 00:00:00 2001
++From: Michael Niedermayer <michael@niedermayer.cc>
++Date: Mon, 21 Sep 2026 05:29:44 +0200
++Subject: [PATCH] avformat/http: reject a Content-Range whose end lies before
++ its start
++
++Fixes: endless HTTP request loop, ffmpeg never terminates
++Fixes: dDqntqRxpBRI
++Regression since: bf1722a9c6a6fcfeb7c35a47a3a1f4530402dcba
++Found-by: OpenSec <security@opensec.in>
++---
++ libavformat/http.c | 14 +++++++++++---
++ 1 file changed, 11 insertions(+), 3 deletions(-)
++
++diff --git a/libavformat/http.c b/libavformat/http.c
++index cb7cab13571e8..b7ae56f7232de 100644
++--- a/libavformat/http.c
+++++ b/libavformat/http.c
++@@ -968,7 +968,7 @@ static int parse_location(HTTPContext *s, const char *p)
++ }
++ 
++ /* "bytes $from-$to/$document_size" */
++-static void parse_content_range(URLContext *h, const char *p)
+++static int parse_content_range(URLContext *h, const char *p)
++ {
++     HTTPContext *s = h->priv_data;
++     const char *slash, *end;
++@@ -976,13 +976,20 @@ static void parse_content_range(URLContext *h, const char *p)
++     if (!strncmp(p, "bytes ", 6)) {
++         p     += 6;
++         s->off = strtoull(p, NULL, 10);
++-        if ((end = strchr(p, '-')) && strlen(end) > 0)
+++        if ((end = strchr(p, '-')) && strlen(end) > 0) {
++             s->range_end = strtoull(end + 1, NULL, 10) + 1;
+++            if (s->range_end <= s->off) {
+++                av_log(h, AV_LOG_ERROR, "Invalid Content-Range: end %"PRIu64" before start %"PRIu64"\n",
+++                       s->range_end - 1, s->off);
+++                return AVERROR_INVALIDDATA;
+++            }
+++        }
++         if ((slash = strchr(p, '/')) && strlen(slash) > 0)
++             s->filesize_from_content_range = strtoull(slash + 1, NULL, 10);
++     }
++     if (s->seekable == -1 && (!s->is_akamai || s->filesize != 2147483647))
++         h->is_streamed = 0; /* we _can_ in fact seek */
+++    return 0;
++ }
++ 
++ static int parse_content_encoding(URLContext *h, const char *p)
++@@ -1374,7 +1381,8 @@ static int process_line(URLContext *h, char *line, int line_count, int *parsed_h
++                    s->filesize == UINT64_MAX) {
++             s->filesize = strtoull(p, NULL, 10);
++         } else if (!av_strcasecmp(tag, "Content-Range")) {
++-            parse_content_range(h, p);
+++            if ((ret = parse_content_range(h, p)) < 0)
+++                return ret;
++         } else if (!av_strcasecmp(tag, "Accept-Ranges") &&
++                    !strncmp(p, "bytes", 5) &&
++                    s->seekable == -1) {
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index eee318a..6f5b301 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -3,6 +3,9 @@
+ # Unterschiede zu media-kit (2023/2024): alle LGPL-Decoder/Demuxer/Parser/Filter/Protokolle an
+ # (statt kuratierter Liste), Encoder nur png/mjpeg (Screenshots), Muxer nur spdif (Passthrough)
+ # + mpegts/matroska/mp4/mov (mpv stream-record/dump-cache), TLS ueber OpenSSL 3 (Apache-2.0).
++# Stand: Branch release/8.1 (29e619e767, = n8.1.3 + 9 Korrekturen vom 26.-29.09.2026)
++# + ffmpeg-00*.patch: HTTP-Seek-Korrekturen aus master (Juni/Sept. 2026), ohne die schlaegt in n8.1.x
++#   das Zurueckspulen auf vielen HTTP(S)-Servern fehl (Soft-Seek-Unterlauf, Verbindung trotz close wiederverwendet).
+ ExternalProject_Add(ffmpeg
+     DEPENDS
+         amf-headers
+@@ -15,10 +18,11 @@ ExternalProject_Add(ffmpeg
+         libvpl
+     GIT_REPOSITORY https://github.com/FFmpeg/FFmpeg.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+-    GIT_TAG n8.1.3
++    GIT_TAG 29e619e767cde9045a75c29bc9a8278ae7b3a98b
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !tests/ref/fate"
+     UPDATE_COMMAND ""
++    PATCH_COMMAND ${EXEC} git am --3way ${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg-*.patch
+     CONFIGURE_COMMAND ${EXEC} CONF=1 <SOURCE_DIR>/configure
+         --cross-prefix=${TARGET_ARCH}-
+         --prefix=${MINGW_INSTALL_PREFIX}
+-- 
+2.43.0
+
