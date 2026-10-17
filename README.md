@@ -19,9 +19,14 @@ Questions: support@visiv.tv
 
 | visiv version | libmpv-2.dll | Download (release) |
 |---|---|---|
-| 1.0.0 | mpv 0.41.0, FFmpeg 8.1.3, OpenSSL 3.5.9, built 2026-09-30 | [`libmpv-20260930-v0.41.0`](../../releases/tag/libmpv-20260930-v0.41.0) |
+| 1.0.0 | mpv 0.41.0, FFmpeg 8.1.3, OpenSSL 3.5.9, built 2026-10-17 | [`libmpv-20261017-v0.41.0`](../../releases/tag/libmpv-20261017-v0.41.0) |
 
-The DLL inside visiv: SHA-256 `c9d550a36ad4497f06755731acb2d33dcd9e9952794f94b34c177e18fc3824ac`, 62 034 446 bytes.
+The DLL inside visiv: SHA-256 `6e071dc45b7cc6933ba64a647928825f7e18724bae83fe876275c05440898175`, 62 034 446 bytes.
+
+The release [`libmpv-20260930-v0.41.0`](../../releases/tag/libmpv-20260930-v0.41.0) contains the same sources and
+the same recipe; that DLL was built in a different folder and is not part of any published visiv version. The build of
+2026-10-17 was made in `/opt/visiv/mpvbuild` – use the same folder with `build-offline.sh` and the paths inside the
+rebuilt DLL match as well.
 visiv shows the versions under Settings › Help › About visiv; the licence texts of all components are under
 Settings › Help › Licences.
 
@@ -44,8 +49,9 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 
 ## Rebuilding
 
-Tested on Ubuntu 24.04 (WSL2) on 2026-10-14 with network access disabled (`unshare -rn`): the rebuilt DLL has the
-same 57 exports, the same imports and the same embedded FFmpeg and mpv configuration as the shipped one.
+Tested on Ubuntu 24.04 (WSL2) on 2026-10-17 with network access disabled (`unshare -rn`), from the release
+`libmpv-20261017-v0.41.0`: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
+configuration as the shipped one (apart from the build folder).
 
 1. Build tools (the list from the recipe's README, section «Ubuntu Linux / WSL»):
 
@@ -64,8 +70,8 @@ same 57 exports, the same imports and the same embedded FFmpeg and mpv configura
    | [gcc-14.4.0.tar.xz](https://ftp.gnu.org/gnu/gcc/gcc-14.4.0/gcc-14.4.0.tar.xz) | `752b6f567beac83159c77a7680b1316bdd784738bff9a9d070112c09da90f6d9` |
    | [binutils-2.45.1.tar.xz](https://ftp.gnu.org/gnu/binutils/binutils-2.45.1.tar.xz) | `5fe101e6fe9d18fdec95962d81ed670fdee5f37e3f48f0bef87bddf862513aa5` |
 
-3. Run `./build-offline.sh ~/libmpv-build` (about 30–60 minutes). Result:
-   `~/libmpv-build/build/mpv-dev/libmpv-2.dll`.
+3. Run `./build-offline.sh /opt/visiv/mpvbuild` (any empty folder works; this is the one used for the DLL in visiv,
+   about 30–60 minutes). Result: `/opt/visiv/mpvbuild/build/mpv-dev/libmpv-2.dll`.
 
 The rebuilt DLL is not bit-identical to the shipped one (build paths, time stamps, and the version strings contain
 the commit ids of the local git repositories, e.g. `mpv v0.41.0-dev-g…` instead of `mpv v0.41.0-1-g…`), but it is
