@@ -24,9 +24,10 @@ Questions: support@visiv.tv
 The DLL inside visiv: SHA-256 `6e071dc45b7cc6933ba64a647928825f7e18724bae83fe876275c05440898175`, 62 034 446 bytes.
 
 The release [`libmpv-20260930-v0.41.0`](../../releases/tag/libmpv-20260930-v0.41.0) contains the same sources and
-the same recipe; that DLL was built in a different folder and is not part of any published visiv version. The build of
-2026-10-17 was made in `/opt/visiv/mpvbuild` – use the same folder with `build-offline.sh` and the paths inside the
-rebuilt DLL match as well.
+the same recipe; that DLL was built in a different folder and is not part of any published visiv version. The DLL of
+2026-10-17 was built in the folder `/opt/visiv/mpvbuild`, and that folder name appears in some strings inside the DLL
+(build options, source file names). A rebuild in another folder contains that folder's name instead (and libxml2's
+default catalog path may differ, which has no effect on Windows).
 visiv shows the versions under Settings › Help › About visiv; the licence texts of all components are under
 Settings › Help › Licences.
 
@@ -51,7 +52,8 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 
 Tested on Ubuntu 24.04 (WSL2) on 2026-10-17 with network access disabled (`unshare -rn`), from the release
 `libmpv-20261017-v0.41.0`: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
-configuration as the shipped one (apart from the build folder).
+configuration as the shipped one (apart from the build folder). The copy of this README inside a release archive
+can be older; follow the steps here.
 
 1. Build tools (the list from the recipe's README, section «Ubuntu Linux / WSL»):
 
@@ -63,15 +65,25 @@ configuration as the shipped one (apart from the build folder).
 
    (versions used: CMake 3.28.3, Meson 1.12.1, Ninja 1.11.1, NASM 2.16.01, host GCC 13.3.0)
 
-2. The cross compiler is built from the unmodified GNU releases; put the two tarballs next to `build-offline.sh`:
+2. The cross compiler is built from the unmodified GNU releases. Since release `libmpv-20261017-v0.41.0` both tarballs
+   are included next to `build-offline.sh`; for older releases download them and put them there:
 
    | File | SHA-256 |
    |---|---|
    | [gcc-14.4.0.tar.xz](https://ftp.gnu.org/gnu/gcc/gcc-14.4.0/gcc-14.4.0.tar.xz) | `752b6f567beac83159c77a7680b1316bdd784738bff9a9d070112c09da90f6d9` |
    | [binutils-2.45.1.tar.xz](https://ftp.gnu.org/gnu/binutils/binutils-2.45.1.tar.xz) | `5fe101e6fe9d18fdec95962d81ed670fdee5f37e3f48f0bef87bddf862513aa5` |
 
-3. Run `./build-offline.sh /opt/visiv/mpvbuild` (any empty folder works; this is the one used for the DLL in visiv,
-   about 30–60 minutes). Result: `/opt/visiv/mpvbuild/build/mpv-dev/libmpv-2.dll`.
+3. Create a **new, empty** work folder that is used for nothing else, and run the script with it (about 30–60
+   minutes):
+
+       mkdir ~/visiv-libmpv-rebuild
+       ./build-offline.sh ~/visiv-libmpv-rebuild
+
+   Result: `~/visiv-libmpv-rebuild/build/mpv-dev/libmpv-2.dll`.
+
+   > **Warning:** `build-offline.sh` deletes the folders `build/`, `recipe/` and `src_packages/` inside the work
+   > folder when it starts, without asking. Never pass a folder that holds a build you want to keep. On the machine
+   > where the visiv DLL was built, never use `/opt/visiv/mpvbuild`: that is the original build and would be deleted.
 
 The rebuilt DLL is not bit-identical to the shipped one (build paths, time stamps, and the version strings contain
 the commit ids of the local git repositories, e.g. `mpv v0.41.0-dev-g…` instead of `mpv v0.41.0-1-g…`), but it is
@@ -90,3 +102,7 @@ component is included.
 weitere Bausteine, LGPL-3.0), die visiv von der nnexd GmbH mitliefert – samt Änderungen, Bau-Rezept und einem Skript,
 das die DLL ohne Internet nachbaut. Das Angebot gilt mindestens drei Jahre ab der letzten Auslieferung der jeweiligen
 visiv-Version. Fragen: support@visiv.tv
+
+**Achtung beim Nachbau:** immer einen neuen, leeren Ordner angeben (z. B. `~/visiv-libmpv-rebuild`). `build-offline.sh`
+löscht darin `build/`, `recipe/` und `src_packages/` ohne Rückfrage. Auf dem Rechner, auf dem die DLL von visiv gebaut
+wurde, nie `/opt/visiv/mpvbuild` angeben – dort liegt der echte Bau.
