@@ -1,0 +1,898 @@
+From 92b9a97d2b573790007a0ea930519528dd81a79c Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Sat, 7 Nov 2026 00:00:00 +0000
+Subject: [PATCH 09/10] visiv: endgueltiger Neubau vor dem Flight 1.1.0 -
+ FFmpeg release/8.1 (a35157abb), WebVTT-in-HLS-Rueckport (0007-0010) und
+ Zusatz 0011, Parser-Positivliste, mpv ohne JavaScript
+
+---
+ ...ec-add-an-option-to-apply-the-X-TIME.patch | 142 +++++++++
+ ...ly-the-X-TIMESTAMP-MAP-header-of-Web.patch | 219 ++++++++++++++
+ ...p-the-subtitle-cues-still-shown-at-t.patch |  41 +++
+ ...p-WebVTT-cues-repeated-across-segmen.patch | 269 ++++++++++++++++++
+ ...h-up-an-enabled-subtitle-playlist-fr.patch |  79 +++++
+ packages/ffmpeg.cmake                         |  35 ++-
+ packages/mpv.cmake                            |   6 +-
+ 7 files changed, 785 insertions(+), 6 deletions(-)
+ create mode 100755 packages/ffmpeg-0007-avformat-webvttdec-add-an-option-to-apply-the-X-TIME.patch
+ create mode 100755 packages/ffmpeg-0008-avformat-hls-apply-the-X-TIMESTAMP-MAP-header-of-Web.patch
+ create mode 100755 packages/ffmpeg-0009-avformat-hls-keep-the-subtitle-cues-still-shown-at-t.patch
+ create mode 100755 packages/ffmpeg-0010-avformat-hls-drop-WebVTT-cues-repeated-across-segmen.patch
+ create mode 100644 packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
+
+diff --git a/packages/ffmpeg-0007-avformat-webvttdec-add-an-option-to-apply-the-X-TIME.patch b/packages/ffmpeg-0007-avformat-webvttdec-add-an-option-to-apply-the-X-TIME.patch
+new file mode 100755
+index 0000000..62a2592
+--- /dev/null
++++ b/packages/ffmpeg-0007-avformat-webvttdec-add-an-option-to-apply-the-X-TIME.patch
+@@ -0,0 +1,142 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sat, 17 Oct 2026 01:37:53 +0200
++Subject: [PATCH 07/10] avformat/webvttdec: add an option to apply the
++ X-TIMESTAMP-MAP header
++MIME-Version: 1.0
++Content-Type: text/plain; charset=UTF-8
++Content-Transfer-Encoding: 8bit
++
++HLS WebVTT segments carry an X-TIMESTAMP-MAP header that maps a cue time
++to an MPEG-TS time of the other renditions (RFC 8216, 3.5). With
++timestamp_map set, add the offset it gives to the cue timestamps, and use
++the 90 kHz MPEG-TS time base for the stream so that the mapping stays
++exact. Skip the header when it comes in a block of its own instead of
++ending the parsing there.
++
++Signed-off-by: Kacper Michajłow <kasper93@gmail.com>
++
++Backport to FFmpeg release/8.1 for visiv (2026-11-07): code only, the
++documentation (doc/demuxers.texi) and the FATE test (tests/) are left out.
++(cherry picked from commit 039335d9bc9ee8f8108f2768528cfe2657ecff4f)
++---
++ libavformat/webvttdec.c | 60 +++++++++++++++++++++++++++++++++++++----
++ 1 file changed, 55 insertions(+), 5 deletions(-)
++
++diff --git a/libavformat/webvttdec.c b/libavformat/webvttdec.c
++index 4ca1e939b..8b5846638 100644
++--- a/libavformat/webvttdec.c
+++++ b/libavformat/webvttdec.c
++@@ -28,6 +28,7 @@
++ #include "demux.h"
++ #include "internal.h"
++ #include "subtitles.h"
+++#include "libavutil/avstring.h"
++ #include "libavutil/bprint.h"
++ #include "libavutil/intreadwrite.h"
++ #include "libavutil/opt.h"
++@@ -36,6 +37,7 @@ typedef struct {
++     const AVClass *class;
++     FFDemuxSubtitlesQueue q;
++     int kind;
+++    int timestamp_map;
++ } WebVTTContext;
++ 
++ static int webvtt_probe(const AVProbeData *p)
++@@ -58,16 +60,55 @@ static int64_t read_ts(const char *s)
++     return AV_NOPTS_VALUE;
++ }
++ 
+++/* X-TIMESTAMP-MAP=LOCAL:<cue time>,MPEGTS:<MPEG-2 time>, in either order,
+++ * on a header line of its own */
+++static void parse_timestamp_map(AVFormatContext *s, const char *p,
+++                                AVRational time_base, int64_t *offset)
+++{
+++    int64_t local = AV_NOPTS_VALUE, mpegts = AV_NOPTS_VALUE;
+++
+++    while (*p && !av_strstart(p, "X-TIMESTAMP-MAP=", NULL)) {
+++        p += strcspn(p, "\r\n");
+++        p += strspn(p, "\r\n");
+++    }
+++    if (!*p)
+++        return;
+++    p += strlen("X-TIMESTAMP-MAP=");
+++    while (*p && *p != '\r' && *p != '\n') {
+++        const char *val;
+++        if (av_strstart(p, "LOCAL:", &val)) {
+++            local = read_ts(val);
+++        } else if (av_strstart(p, "MPEGTS:", &val)) {
+++            char *end;
+++            mpegts = strtoll(val, &end, 10);
+++            if (end == val || (*end && !strchr(",\r\n", *end)) ||
+++                mpegts < 0 || mpegts >= (1LL << 33))
+++                mpegts = AV_NOPTS_VALUE;
+++        }
+++        p += strcspn(p, ",\r\n");
+++        if (*p == ',')
+++            p++;
+++    }
+++    if (local == AV_NOPTS_VALUE || mpegts == AV_NOPTS_VALUE) {
+++        av_log(s, AV_LOG_WARNING, "Invalid X-TIMESTAMP-MAP header\n");
+++        return;
+++    }
+++
+++    *offset = av_rescale_q(mpegts, (AVRational){ 1, 90000 }, time_base) -
+++              av_rescale_q(local, (AVRational){ 1, 1000 }, time_base);
+++}
+++
++ static int webvtt_read_header(AVFormatContext *s)
++ {
++     WebVTTContext *webvtt = s->priv_data;
++     AVBPrint cue;
++     int res = 0;
+++    int64_t ts_offset = 0;
++     AVStream *st = avformat_new_stream(s, NULL);
++ 
++     if (!st)
++         return AVERROR(ENOMEM);
++-    avpriv_set_pts_info(st, 64, 1, 1000);
+++    avpriv_set_pts_info(st, 64, 1, webvtt->timestamp_map ? 90000 : 1000);
++     st->codecpar->codec_type = AVMEDIA_TYPE_SUBTITLE;
++     st->codecpar->codec_id   = AV_CODEC_ID_WEBVTT;
++     st->disposition |= webvtt->kind;
++@@ -92,10 +133,16 @@ static int webvtt_read_header(AVFormatContext *s)
++         p = identifier = cue.str;
++         pos = avio_tell(s->pb);
++ 
++-        /* ignore header chunk */
+++        /* header chunk */
++         if (!strncmp(p, "\xEF\xBB\xBFWEBVTT", 9) ||
++             !strncmp(p, "WEBVTT", 6) ||
++-            !strncmp(p, "STYLE", 5) ||
+++            (!strncmp(p, "X-TIMESTAMP-MAP=", 16) && !strstr(p, "-->"))) {
+++            if (webvtt->timestamp_map)
+++                parse_timestamp_map(s, p, st->time_base, &ts_offset);
+++            continue;
+++        }
+++
+++        if (!strncmp(p, "STYLE", 5) ||
++             !strncmp(p, "REGION", 6) ||
++             !strncmp(p, "NOTE", 4))
++             continue;
++@@ -148,8 +195,10 @@ static int webvtt_read_header(AVFormatContext *s)
++             goto end;
++         }
++         sub->pos = pos;
++-        sub->pts = ts_start;
++-        sub->duration = ts_end - ts_start;
+++        sub->pts = av_rescale_q(ts_start, (AVRational){ 1, 1000 }, st->time_base) +
+++                   ts_offset;
+++        sub->duration = av_rescale_q(ts_end - ts_start, (AVRational){ 1, 1000 },
+++                                     st->time_base);
++ 
++ #define SET_SIDE_DATA(name, type) do {                                  \
++     if (name##_len) {                                                   \
++@@ -203,6 +252,7 @@ static const AVOption options[] = {
++         { "captions",     "WebVTT captions kind",     0, AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_CAPTIONS },     INT_MIN, INT_MAX, KIND_FLAGS, .unit = "webvtt_kind" },
++         { "descriptions", "WebVTT descriptions kind", 0, AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_DESCRIPTIONS }, INT_MIN, INT_MAX, KIND_FLAGS, .unit = "webvtt_kind" },
++         { "metadata",     "WebVTT metadata kind",     0, AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_METADATA },     INT_MIN, INT_MAX, KIND_FLAGS, .unit = "webvtt_kind" },
+++    { "timestamp_map", "Apply the X-TIMESTAMP-MAP header to the cue timestamps, in the 90 kHz MPEG-TS time base", OFFSET(timestamp_map), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, KIND_FLAGS },
++     { NULL }
++ };
++ 
+diff --git a/packages/ffmpeg-0008-avformat-hls-apply-the-X-TIMESTAMP-MAP-header-of-Web.patch b/packages/ffmpeg-0008-avformat-hls-apply-the-X-TIMESTAMP-MAP-header-of-Web.patch
+new file mode 100755
+index 0000000..1bac230
+--- /dev/null
++++ b/packages/ffmpeg-0008-avformat-hls-apply-the-X-TIMESTAMP-MAP-header-of-Web.patch
+@@ -0,0 +1,219 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sat, 17 Oct 2026 01:37:53 +0200
++Subject: [PATCH 08/10] avformat/hls: apply the X-TIMESTAMP-MAP header of
++ WebVTT segments
++MIME-Version: 1.0
++Content-Type: text/plain; charset=UTF-8
++Content-Transfer-Encoding: 8bit
++
++Set the timestamp_map option of the webvtt demuxer for the subtitle
++segments in place of prefer_hls_mpegts_pts, which no demuxer has, so the
++cue times land on the MPEG-TS timeline of the audio and video. That time
++is on the 33 bit PES clock, so each cue is put on the period of that clock
++nearest to the position of the media, which is read first when both are
++enabled. A cue read without any media does not become that position, and
++a cue still buffered when the media is enabled is placed relative to it
++before it is returned.
++
++Signed-off-by: Kacper Michajłow <kasper93@gmail.com>
++
++Backport to FFmpeg release/8.1 for visiv (2026-11-07): code only, the FATE
++reference files (tests/) are left out. Two hunks were applied by hand because the
++context differs in 8.1 (initialisation in new_playlist(), the subtitle
++branch of hls_read_seek()).
++(cherry picked from commit b4738344cdbe95522c84de41d34d15527830712b)
++---
++ libavformat/hls.c | 98 ++++++++++++++++++++++++++++++++++++++++++++---
++ 1 file changed, 92 insertions(+), 6 deletions(-)
++
++diff --git a/libavformat/hls.c b/libavformat/hls.c
++index b3d54ce10..556269a9f 100644
++--- a/libavformat/hls.c
+++++ b/libavformat/hls.c
++@@ -111,6 +111,7 @@ struct playlist {
++     int index;
++     AVFormatContext *ctx;
++     AVPacket *pkt;
+++    int64_t last_cue_pts; /* reference for the cues read without media */
++     int has_noheader_flag;
++ 
++     /* main demuxer streams associated with this playlist
++@@ -331,6 +332,7 @@ static struct playlist *new_playlist(HLSContext *c, const char *url,
++         av_free(pls);
++         return NULL;
++     }
+++    pls->last_cue_pts = AV_NOPTS_VALUE;
++     pls->seek_timestamp = AV_NOPTS_VALUE;
++ 
++     pls->is_id3_timestamped = -1;
++@@ -1846,6 +1848,60 @@ static int init_subtitle_context(struct playlist *pls)
++     return ret;
++ }
++ 
+++static AVRational get_timebase(struct playlist *pls);
+++
+++/* The position of the media, the reference for the cue times: the last
+++ * returned packet, or a packet buffered from a media playlist before
+++ * anything was returned. AV_NOPTS_VALUE without media. */
+++static int64_t media_position(HLSContext *c)
+++{
+++    if (c->cur_timestamp != AV_NOPTS_VALUE)
+++        return c->cur_timestamp;
+++    for (int i = 0; i < c->n_playlists; i++) {
+++        struct playlist *pls = c->playlists[i];
+++
+++        if (!pls->is_subtitle && pls->needed && pls->pkt->data &&
+++            pls->pkt->dts != AV_NOPTS_VALUE)
+++            return av_rescale_q(pls->pkt->dts, get_timebase(pls), AV_TIME_BASE_Q);
+++    }
+++    return AV_NOPTS_VALUE;
+++}
+++
+++/* The MPEG-TS time of a cue is on the 33 bit PES clock, this is the period
+++ * of that clock nearest to ref, both in MPEG_TIME_BASE_Q. */
+++static int64_t nearest_period(int64_t pts, int64_t ref)
+++{
+++    const int64_t period = 1LL << 33, half = 1LL << 32;
+++    int64_t d = pts - ref;
+++
+++    return pts - (d >= 0 ? d + half : d - half) / period * period;
+++}
+++
+++static void unwrap_pkt(AVPacket *pkt, AVRational tb, int64_t ref)
+++{
+++    int64_t pts;
+++
+++    if (pkt->pts == AV_NOPTS_VALUE)
+++        return;
+++    pts = nearest_period(av_rescale_q(pkt->pts, tb, MPEG_TIME_BASE_Q), ref);
+++    pkt->pts = pkt->dts = av_rescale_q(pts, MPEG_TIME_BASE_Q, tb);
+++}
+++
+++/* Put a cue on the period nearest to the media position, where the
+++ * timestamps of the other renditions continue after a wrap. Without media
+++ * a cue follows the previous cue of its playlist. */
+++static void unwrap_cue_pts(HLSContext *c, struct playlist *v, AVPacket *pkt)
+++{
+++    AVRational tb = v->ctx->streams[pkt->stream_index]->time_base;
+++    int64_t ref = media_position(c);
+++
+++    if (ref != AV_NOPTS_VALUE)
+++        unwrap_pkt(pkt, tb, av_rescale_q(ref, AV_TIME_BASE_Q, MPEG_TIME_BASE_Q));
+++    else if (v->last_cue_pts != AV_NOPTS_VALUE)
+++        unwrap_pkt(pkt, tb, av_rescale_q(v->last_cue_pts, tb, MPEG_TIME_BASE_Q));
+++    v->last_cue_pts = pkt->pts;
+++}
+++
++ static int read_subtitle_packet(struct playlist *v, AVPacket *pkt)
++ {
++     HLSContext *c = v->parent->priv_data;
++@@ -1867,7 +1923,8 @@ restart:
++ 
++     ret = av_read_frame(v->ctx, v->pkt);
++     if (!ret) {
++-        return ret;
+++        unwrap_cue_pts(c, v, v->pkt);
+++        return 0;
++     }
++     ff_format_io_close(v->parent, &v->input);
++     v->cur_seq_no++;
++@@ -2246,7 +2303,7 @@ static int hls_read_header(AVFormatContext *s)
++         highest_cur_seq_no = FFMAX(highest_cur_seq_no, pls->cur_seq_no);
++     }
++ 
++-    av_dict_set(&c->seg_format_opts, "prefer_hls_mpegts_pts", "1", 0);
+++    av_dict_set(&c->seg_format_opts, "timestamp_map", "1", 0);
++ 
++     /* Open the demuxer for each playlist */
++     for (i = 0; i < c->n_playlists; i++) {
++@@ -2485,8 +2542,10 @@ static int recheck_discard_flags(AVFormatContext *s, int first)
++             pls->input_read_done = 0;
++             ff_format_io_close(pls->parent, &pls->input_next);
++             pls->input_next_requested = 0;
++-            if (pls->is_subtitle)
+++            if (pls->is_subtitle) {
++                 avformat_close_input(&pls->ctx);
+++                pls->last_cue_pts = AV_NOPTS_VALUE;
+++            }
++             pls->needed = 0;
++             changed = 1;
++             av_log(s, AV_LOG_INFO, "No longer receiving playlist %d\n", i);
++@@ -2540,16 +2599,24 @@ static int compare_ts_with_wrapdetect(int64_t ts_a, struct playlist *pls_a,
++ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
++ {
++     HLSContext *c = s->priv_data;
++-    int ret, i, minplaylist = -1;
+++    int ret, i, minplaylist = -1, deferred = 0, unanchored = 0;
++ 
++     recheck_discard_flags(s, c->first_packet);
++     c->first_packet = 0;
++ 
+++retry:
++     for (i = 0; i < c->n_playlists; i++) {
++         struct playlist *pls = c->playlists[i];
++         /* Make sure we've got one buffered packet from each open playlist
++          * stream */
++         if (pls->needed && !pls->pkt->data) {
+++            /* a cue is placed relative to the media, so the media playlists
+++             * buffer their packets first */
+++            if (pls->is_subtitle && !unanchored &&
+++                media_position(c) == AV_NOPTS_VALUE) {
+++                deferred = 1;
+++                continue;
+++            }
++             while (1) {
++                 int64_t ts_diff;
++                 AVRational tb;
++@@ -2607,6 +2674,14 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
++                 av_packet_unref(pls->pkt);
++             }
++         }
+++    }
+++
+++    for (i = 0; i < c->n_playlists; i++) {
+++        struct playlist *pls = c->playlists[i];
+++
+++        /* a cue buffered without media is placed once the media is */
+++        if (pls->is_subtitle && pls->pkt->data)
+++            unwrap_cue_pts(c, pls, pls->pkt);
++         /* Check if this stream has the packet with the lowest dts */
++         if (pls->pkt->data) {
++             struct playlist *minpls = minplaylist < 0 ?
++@@ -2624,6 +2699,13 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
++         }
++     }
++ 
+++    /* without media the cues are read as they are */
+++    if (minplaylist < 0 && deferred) {
+++        deferred   = 0;
+++        unanchored = 1;
+++        goto retry;
+++    }
+++
++     /* If we got a packet, return it */
++     if (minplaylist >= 0) {
++         struct playlist *pls = c->playlists[minplaylist];
++@@ -2666,7 +2748,9 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
++         av_packet_move_ref(pkt, pls->pkt);
++         pkt->stream_index = st->index;
++ 
++-        if (pkt->dts != AV_NOPTS_VALUE)
+++        /* a cue read without media does not set the media position */
+++        if (pkt->dts != AV_NOPTS_VALUE &&
+++            (!pls->is_subtitle || c->first_timestamp != AV_NOPTS_VALUE))
++             c->cur_timestamp = av_rescale_q(pkt->dts,
++                                             ist->time_base,
++                                             AV_TIME_BASE_Q);
++@@ -2755,8 +2839,10 @@ static int hls_read_seek(AVFormatContext *s, int stream_index,
++         /* Flush the packet queue of the subdemuxer. */
++         if (pls->ctx)
++             ff_read_frame_flush(pls->ctx);
++-        if (pls->is_subtitle)
+++        if (pls->is_subtitle) {
++             avformat_close_input(&pls->ctx);
+++            pls->last_cue_pts = AV_NOPTS_VALUE;
+++        }
++ 
++         /* Reset the init segment so it's re-fetched and served appropriately */
++         pls->cur_init_section = NULL;
+diff --git a/packages/ffmpeg-0009-avformat-hls-keep-the-subtitle-cues-still-shown-at-t.patch b/packages/ffmpeg-0009-avformat-hls-keep-the-subtitle-cues-still-shown-at-t.patch
+new file mode 100755
+index 0000000..64ba418
+--- /dev/null
++++ b/packages/ffmpeg-0009-avformat-hls-keep-the-subtitle-cues-still-shown-at-t.patch
+@@ -0,0 +1,41 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sat, 17 Oct 2026 01:37:54 +0200
++Subject: [PATCH 09/10] avformat/hls: keep the subtitle cues still shown at the
++ seek target
++MIME-Version: 1.0
++Content-Type: text/plain; charset=UTF-8
++Content-Transfer-Encoding: 8bit
++
++Discard the cues of a subtitle playlist by their end time when seeking
++or when the playlist is enabled during playback, so a cue that is on
++screen at the target is delivered instead of the next one starting after
++it.
++
++Signed-off-by: Kacper Michajłow <kasper93@gmail.com>
++
++Backport to FFmpeg release/8.1 for visiv (2026-11-07): code only, the FATE
++reference files (tests/) are left out.
++(cherry picked from commit 729de963f9063efb6d6cb04e8a29dccc809155b3)
++---
++ libavformat/hls.c | 7 +++++++
++ 1 file changed, 7 insertions(+)
++
++diff --git a/libavformat/hls.c b/libavformat/hls.c
++index 556269a9f..98ac00e06 100644
++--- a/libavformat/hls.c
+++++ b/libavformat/hls.c
++@@ -2670,6 +2670,13 @@ retry:
++                         pls->seek_timestamp = AV_NOPTS_VALUE;
++                         break;
++                     }
+++                    /* a cue still shown at the target is delivered, the cues
+++                     * after it may still have ended before the target */
+++                    if (pls->is_subtitle && pls->pkt->duration > 0 &&
+++                        av_rescale_q_rnd(pls->pkt->dts + pls->pkt->duration, tb,
+++                                         AV_TIME_BASE_Q, AV_ROUND_DOWN) >
+++                        pls->seek_timestamp)
+++                        break;
++                 }
++                 av_packet_unref(pls->pkt);
++             }
+diff --git a/packages/ffmpeg-0010-avformat-hls-drop-WebVTT-cues-repeated-across-segmen.patch b/packages/ffmpeg-0010-avformat-hls-drop-WebVTT-cues-repeated-across-segmen.patch
+new file mode 100755
+index 0000000..3b3d886
+--- /dev/null
++++ b/packages/ffmpeg-0010-avformat-hls-drop-WebVTT-cues-repeated-across-segmen.patch
+@@ -0,0 +1,269 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: =?UTF-8?q?Kacper=20Michaj=C5=82ow?= <kasper93@gmail.com>
++Date: Sat, 17 Oct 2026 01:37:54 +0200
++Subject: [PATCH 10/10] avformat/hls: drop WebVTT cues repeated across segment
++ boundaries
++MIME-Version: 1.0
++Content-Type: text/plain; charset=UTF-8
++Content-Transfer-Encoding: 8bit
++
++A WebVTT segment contains every cue shown during its period (RFC 8216,
++3.5), so a cue that reaches into the next segment appears in both. Keep
++the cues of the previous segment and drop the ones the current segment
++repeats, so each cue is delivered once. The kept cues read before the
++media position was known move onto it once it is, so the comparison is on
++one timeline. Nothing is repeated across a discontinuity, so the kept cues
++are dropped when the opened segment has another discontinuity sequence
++number (RFC 8216, 4.3.3.3), which also covers a boundary that already left
++a live playlist.
++
++Signed-off-by: Kacper Michajłow <kasper93@gmail.com>
++
++Backport to FFmpeg release/8.1 for visiv (2026-11-07): code only, the FATE
++reference files (tests/) are left out. Two hunks were applied by hand because the
++context differs in 8.1 (8.1 does not parse EXT-X-DISCONTINUITY at all, so
++the two tags are parsed here; the subtitle branch of hls_read_seek()).
++(cherry picked from commit ef53ec02d8b21381a116bbb4c3ec2ab0047a7fcf)
++---
++ libavformat/hls.c | 127 ++++++++++++++++++++++++++++++++++++++++++----
++ 1 file changed, 117 insertions(+), 10 deletions(-)
++
++diff --git a/libavformat/hls.c b/libavformat/hls.c
++index 98ac00e06..d59bea05b 100644
++--- a/libavformat/hls.c
+++++ b/libavformat/hls.c
++@@ -82,6 +82,7 @@ struct segment {
++     char *key;
++     enum KeyType key_type;
++     uint8_t iv[16];
+++    uint64_t discontinuity_seq;
++     /* associated Media Initialization Section, treated as a segment */
++     struct segment *init_section;
++ };
++@@ -112,6 +113,13 @@ struct playlist {
++     AVFormatContext *ctx;
++     AVPacket *pkt;
++     int64_t last_cue_pts; /* reference for the cues read without media */
+++    AVPacket **prev_cues;
+++    int n_prev_cues;
+++    int prev_cue_pos;
+++    int cues_unanchored; /* cues kept before the media position was known */
+++    uint64_t cues_discontinuity_seq; /* of the segment the kept cues are from */
+++    AVPacket **cur_cues;
+++    int n_cur_cues;
++     int has_noheader_flag;
++ 
++     /* main demuxer streams associated with this playlist
++@@ -265,6 +273,23 @@ static void free_init_section_list(struct playlist *pls)
++     pls->n_init_sections = 0;
++ }
++ 
+++static void free_cue_list(AVPacket ***cues, int *n_cues)
+++{
+++    for (int i = 0; i < *n_cues; i++)
+++        av_packet_free(&(*cues)[i]);
+++    av_freep(cues);
+++    *n_cues = 0;
+++}
+++
+++static void free_subtitle_cues(struct playlist *pls)
+++{
+++    free_cue_list(&pls->prev_cues, &pls->n_prev_cues);
+++    free_cue_list(&pls->cur_cues, &pls->n_cur_cues);
+++    pls->prev_cue_pos = 0;
+++    pls->cues_unanchored = 0;
+++    pls->last_cue_pts = AV_NOPTS_VALUE;
+++}
+++
++ static void free_playlist_list(HLSContext *c)
++ {
++     int i;
++@@ -272,6 +297,7 @@ static void free_playlist_list(HLSContext *c)
++         struct playlist *pls = c->playlists[i];
++         free_segment_list(pls);
++         free_init_section_list(pls);
+++        free_subtitle_cues(pls);
++         av_freep(&pls->main_streams);
++         av_freep(&pls->renditions);
++         av_freep(&pls->id3_buf);
++@@ -796,6 +822,7 @@ static int parse_playlist(HLSContext *c, const char *url,
++ {
++     int ret = 0, is_segment = 0, is_variant = 0;
++     int64_t duration = 0;
+++    uint64_t discontinuity_seq = 0;
++     enum KeyType key_type = KEY_NONE;
++     uint8_t iv[16] = "";
++     int has_iv = 0;
++@@ -992,6 +1019,10 @@ static int parse_playlist(HLSContext *c, const char *url,
++         } else if (av_strstart(line, "#EXT-X-ENDLIST", &ptr)) {
++             if (pls)
++                 pls->finished = 1;
+++        } else if (av_strstart(line, "#EXT-X-DISCONTINUITY-SEQUENCE:", &ptr)) {
+++            discontinuity_seq = strtoull(ptr, NULL, 10);
+++        } else if (!strcmp(line, "#EXT-X-DISCONTINUITY")) {
+++            discontinuity_seq++;
++         } else if (av_strstart(line, "#EXTINF:", &ptr)) {
++             double d = atof(ptr) * AV_TIME_BASE;
++             if (d < 0 || d > INT64_MAX || isnan(d)) {
++@@ -1086,6 +1117,7 @@ static int parse_playlist(HLSContext *c, const char *url,
++                 }
++                 seg->duration = duration;
++                 seg->key_type = key_type;
+++                seg->discontinuity_seq = discontinuity_seq;
++                 dynarray_add(&pls->segments, &pls->n_segments, seg);
++                 is_segment = 0;
++ 
++@@ -1848,6 +1880,46 @@ static int init_subtitle_context(struct playlist *pls)
++     return ret;
++ }
++ 
+++static int cue_repeated(struct playlist *v, const AVPacket *pkt)
+++{
+++    /* both segments are in pts order, so the candidates start where the
+++     * previous lookup stopped */
+++    while (v->prev_cue_pos < v->n_prev_cues &&
+++           v->prev_cues[v->prev_cue_pos]->pts < pkt->pts)
+++        v->prev_cue_pos++;
+++
+++    for (int i = v->prev_cue_pos; i < v->n_prev_cues; i++) {
+++        const AVPacket *prev = v->prev_cues[i];
+++        const uint8_t *settings, *prev_settings;
+++        size_t size, prev_size;
+++
+++        if (prev->pts != pkt->pts)
+++            break;
+++        if (prev->duration != pkt->duration || prev->size != pkt->size ||
+++            memcmp(prev->data, pkt->data, pkt->size))
+++            continue;
+++        settings = av_packet_get_side_data(pkt, AV_PKT_DATA_WEBVTT_SETTINGS, &size);
+++        prev_settings = av_packet_get_side_data(prev, AV_PKT_DATA_WEBVTT_SETTINGS,
+++                                                &prev_size);
+++        if (size == prev_size && (!size || !memcmp(settings, prev_settings, size)))
+++            return 1;
+++    }
+++    return 0;
+++}
+++
+++static int remember_cue(struct playlist *v, const AVPacket *pkt)
+++{
+++    AVPacket *cue = av_packet_clone(pkt);
+++
+++    if (!cue)
+++        return AVERROR(ENOMEM);
+++    if (av_dynarray_add_nofree(&v->cur_cues, &v->n_cur_cues, cue) < 0) {
+++        av_packet_free(&cue);
+++        return AVERROR(ENOMEM);
+++    }
+++    return 0;
+++}
+++
++ static AVRational get_timebase(struct playlist *pls);
++ 
++ /* The position of the media, the reference for the cue times: the last
++@@ -1889,22 +1961,36 @@ static void unwrap_pkt(AVPacket *pkt, AVRational tb, int64_t ref)
++ 
++ /* Put a cue on the period nearest to the media position, where the
++  * timestamps of the other renditions continue after a wrap. Without media
++- * a cue follows the previous cue of its playlist. */
+++ * a cue follows the previous cue of its playlist, and the cues kept from
+++ * that time move to the media position once it is known. */
++ static void unwrap_cue_pts(HLSContext *c, struct playlist *v, AVPacket *pkt)
++ {
++     AVRational tb = v->ctx->streams[pkt->stream_index]->time_base;
++     int64_t ref = media_position(c);
++ 
++-    if (ref != AV_NOPTS_VALUE)
++-        unwrap_pkt(pkt, tb, av_rescale_q(ref, AV_TIME_BASE_Q, MPEG_TIME_BASE_Q));
++-    else if (v->last_cue_pts != AV_NOPTS_VALUE)
++-        unwrap_pkt(pkt, tb, av_rescale_q(v->last_cue_pts, tb, MPEG_TIME_BASE_Q));
+++    if (ref != AV_NOPTS_VALUE) {
+++        ref = av_rescale_q(ref, AV_TIME_BASE_Q, MPEG_TIME_BASE_Q);
+++        if (v->cues_unanchored) {
+++            for (int i = 0; i < v->n_prev_cues; i++)
+++                unwrap_pkt(v->prev_cues[i], tb, ref);
+++            for (int i = 0; i < v->n_cur_cues; i++)
+++                unwrap_pkt(v->cur_cues[i], tb, ref);
+++            v->prev_cue_pos    = 0;
+++            v->cues_unanchored = 0;
+++        }
+++        unwrap_pkt(pkt, tb, ref);
+++    } else {
+++        v->cues_unanchored = 1;
+++        if (v->last_cue_pts != AV_NOPTS_VALUE)
+++            unwrap_pkt(pkt, tb, av_rescale_q(v->last_cue_pts, tb, MPEG_TIME_BASE_Q));
+++    }
++     v->last_cue_pts = pkt->pts;
++ }
++ 
++ static int read_subtitle_packet(struct playlist *v, AVPacket *pkt)
++ {
++     HLSContext *c = v->parent->priv_data;
+++    struct segment *seg;
++     int ret;
++ 
++ restart:
++@@ -1916,15 +2002,31 @@ restart:
++         ff_format_io_close(v->parent, &v->input);
++ 
++     if (!v->input && !v->ctx) {
+++        /* nothing is repeated across a discontinuity */
+++        seg = current_segment(v);
+++        if (seg && seg->discontinuity_seq != v->cues_discontinuity_seq) {
+++            free_subtitle_cues(v);
+++            v->cues_discontinuity_seq = seg->discontinuity_seq;
+++        }
++         ret = init_subtitle_context(v);
++         if (ret < 0)
++             return ret;
++     }
++ 
++-    ret = av_read_frame(v->ctx, v->pkt);
++-    if (!ret) {
+++    while (!(ret = av_read_frame(v->ctx, v->pkt))) {
+++        int repeated;
+++
++         unwrap_cue_pts(c, v, v->pkt);
++-        return 0;
+++        repeated = cue_repeated(v, v->pkt);
+++
+++        ret = remember_cue(v, v->pkt);
+++        if (ret < 0) {
+++            av_packet_unref(v->pkt);
+++            return ret;
+++        }
+++        if (!repeated)
+++            return 0;
+++        av_packet_unref(v->pkt);
++     }
++     ff_format_io_close(v->parent, &v->input);
++     v->cur_seq_no++;
++@@ -1932,6 +2034,11 @@ restart:
++ 
++     avformat_close_input(&v->ctx);
++ 
+++    free_cue_list(&v->prev_cues, &v->n_prev_cues);
+++    FFSWAP(AVPacket **, v->prev_cues, v->cur_cues);
+++    FFSWAP(int, v->n_prev_cues, v->n_cur_cues);
+++    v->prev_cue_pos = 0;
+++
++     goto restart;
++ }
++ 
++@@ -2544,7 +2651,7 @@ static int recheck_discard_flags(AVFormatContext *s, int first)
++             pls->input_next_requested = 0;
++             if (pls->is_subtitle) {
++                 avformat_close_input(&pls->ctx);
++-                pls->last_cue_pts = AV_NOPTS_VALUE;
+++                free_subtitle_cues(pls);
++             }
++             pls->needed = 0;
++             changed = 1;
++@@ -2848,7 +2955,7 @@ static int hls_read_seek(AVFormatContext *s, int stream_index,
++             ff_read_frame_flush(pls->ctx);
++         if (pls->is_subtitle) {
++             avformat_close_input(&pls->ctx);
++-            pls->last_cue_pts = AV_NOPTS_VALUE;
+++            free_subtitle_cues(pls);
++         }
++ 
++         /* Reset the init segment so it's re-fetched and served appropriately */
+diff --git a/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch b/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
+new file mode 100644
+index 0000000..d96f1dd
+--- /dev/null
++++ b/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
+@@ -0,0 +1,79 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: "visiv (nnexd GmbH)" <support@visiv.tv>
++Date: Sat, 7 Nov 2026 00:00:00 +0000
++Subject: [PATCH] avformat/hls: catch up an enabled subtitle playlist from the
++ presented position
++
++Subtitle playlists are discarded until the caller selects their stream,
++which a player usually does after avformat_find_stream_info() has already
++read ahead, and a player buffers more before presenting it. Catching up
++from the demuxer position then drops the cues still on screen at the
++position the player shows, including the first one of a live stream.
++
++Catch up from up to three target durations before the demuxer position,
++but not before playback started or the last seek target. Cues that ended
++before what the player presents are dropped by the player itself.
++
++visiv addition on top of the backport of master 729de963f906 (not in FFmpeg).
++---
++ libavformat/hls.c | 19 +++++++++++++++++++
++ 1 file changed, 19 insertions(+)
++
++diff --git a/libavformat/hls.c b/libavformat/hls.c
++index d59bea0..698d82f 100644
++--- a/libavformat/hls.c
+++++ b/libavformat/hls.c
++@@ -229,6 +229,7 @@ typedef struct HLSContext {
++     int first_packet;
++     int64_t first_timestamp;
++     int64_t cur_timestamp;
+++    int64_t restart_timestamp; /* where playback (re)started: first packet or seek target */
++     AVIOInterruptCB *interrupt_callback;
++     AVDictionary *avio_opts;
++     AVDictionary *seg_format_opts;
++@@ -2328,6 +2329,7 @@ static int hls_read_header(AVFormatContext *s)
++     c->first_packet = 1;
++     c->first_timestamp = AV_NOPTS_VALUE;
++     c->cur_timestamp = AV_NOPTS_VALUE;
+++    c->restart_timestamp = AV_NOPTS_VALUE;
++ 
++     if ((ret = ffio_copy_url_options(s->pb, &c->avio_opts)) < 0)
++         return ret;
++@@ -2640,6 +2642,19 @@ static int recheck_discard_flags(AVFormatContext *s, int first)
++             if (c->cur_timestamp != AV_NOPTS_VALUE) {
++                 /* catch up */
++                 pls->seek_timestamp = c->cur_timestamp;
+++                /* The player is still presenting what it buffered before the
+++                 * demuxer position (at the start, everything the probing read).
+++                 * Keep the cues still shown there: catch up from up to three
+++                 * target durations back, but not before playback (re)started. */
+++                if (pls->is_subtitle) {
+++                    pls->seek_timestamp = av_sat_sub64(pls->seek_timestamp,
+++                                                       3 * pls->target_duration);
+++                    if (c->restart_timestamp != AV_NOPTS_VALUE)
+++                        pls->seek_timestamp = FFMAX(pls->seek_timestamp,
+++                                                    c->restart_timestamp);
+++                    pls->seek_timestamp = FFMIN(pls->seek_timestamp,
+++                                                c->cur_timestamp);
+++                }
++                 pls->seek_flags = AVSEEK_FLAG_ANY;
++                 pls->seek_stream_index = -1;
++             }
++@@ -2747,6 +2762,9 @@ retry:
++                         pls->pkt->dts       != AV_NOPTS_VALUE)
++                         c->first_timestamp = av_rescale_q(pls->pkt->dts,
++                             get_timebase(pls), AV_TIME_BASE_Q);
+++                    if (c->restart_timestamp == AV_NOPTS_VALUE &&
+++                        c->first_timestamp   != AV_NOPTS_VALUE)
+++                        c->restart_timestamp = c->first_timestamp;
++                 }
++ 
++                 seg = current_segment(pls);
++@@ -2976,6 +2994,7 @@ static int hls_read_seek(AVFormatContext *s, int stream_index,
++     }
++ 
++     c->cur_timestamp = seek_timestamp;
+++    c->restart_timestamp = seek_timestamp;
++ 
++     return 0;
++ }
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index 6533f74..f16661c 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -1,11 +1,16 @@
+ # visiv LGPL build: FFmpeg ohne GPL/nonfree-Komponenten.
+ # Grundlage: shinchiro/mpv-winbuild-cmake, LGPL-Schalter nach media-kit/libmpv-win32-video-build.
+ # Seit 02.11.2026: Decoder, Demuxer und Protokolle nur nach Positivliste (vorher alle LGPL-Teile);
+-# Parser/Filter/BSF weiter alle LGPL-Teile, Encoder nur png/mjpeg (Screenshots), Muxer nur spdif (Passthrough)
++# seit 07.11.2026 auch die Parser (Fable K2: demux.c legt Parser ohne Decoder an); Filter/BSF weiter alle LGPL-Teile, Encoder nur png/mjpeg (Screenshots), Muxer nur spdif (Passthrough)
+ # + mpegts/matroska/mp4/mov (mpv stream-record/dump-cache), TLS ueber OpenSSL 3 (Apache-2.0).
+-# Stand: Branch release/8.1 (760d10603, = n8.1.3 + 32 Korrekturen bis 01.11.2026)
++# Stand: Branch release/8.1 (a35157abb, = n8.1.3 + 34 Korrekturen bis 04.11.2026; kein n8.1.4)
+ # + ffmpeg-00*.patch: HTTP-Seek-Korrekturen aus master (Juni/Sept. 2026), ohne die schlaegt in n8.1.x
+ #   das Zurueckspulen auf vielen HTTP(S)-Servern fehl (Soft-Seek-Unterlauf, Verbindung trotz close wiederverwendet).
++# + ffmpeg-0007..0010: WebVTT-Untertitel in HLS aus master (04.11.2026, Kacper Michajlow): X-TIMESTAMP-MAP anwenden,
++#   beim Einschalten/Spulen nur schon beendete Zeilen verwerfen, doppelte Zeilen an Segmentgrenzen weglassen.
++#   Ohne sie zeigt 8.1 WebVTT in HLS-Listen gar nicht oder zu frueh (Befund 03.11.2026). Rueckport ohne doc/ und tests/.
++# + ffmpeg-0011 (eigener Zusatz visiv): eine spaet gewaehlte Untertitel-Liste ab der Stelle aufholen, die der Player
++#   noch zeigt (bis 3 Segmente vor der Leseposition, nie vor Start/Spulziel) - sonst fehlt die erste Zeile im Live-TV.
+ ExternalProject_Add(ffmpeg
+     DEPENDS
+         amf-headers
+@@ -18,7 +23,7 @@ ExternalProject_Add(ffmpeg
+         libvpl
+     GIT_REPOSITORY https://github.com/FFmpeg/FFmpeg.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+-    GIT_TAG 760d10603ecd7ea1e47a5787b2c7d47d5bc257f2
++    GIT_TAG a35157abb96167fd7308edc92b55408d5bb084b0
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !tests/ref/fate"
+     UPDATE_COMMAND ""
+@@ -156,6 +161,30 @@ ExternalProject_Add(ffmpeg
+         --enable-protocol=udp
+         --enable-protocol=rtp
+         --enable-protocol=rtmp
++        # Parser nur fuer die Codecs der Liste (Fable K2, Entscheid E-3 A); Roh-Demuxer schalten ihren Parser selbst zu
++        --disable-parsers
++        --enable-parser=aac
++        --enable-parser=aac_latm
++        --enable-parser=ac3
++        --enable-parser=av1
++        --enable-parser=dca
++        --enable-parser=dvbsub
++        --enable-parser=dvdsub
++        --enable-parser=flac
++        --enable-parser=h263
++        --enable-parser=h264
++        --enable-parser=hevc
++        --enable-parser=mjpeg
++        --enable-parser=mlp
++        --enable-parser=mpeg4video
++        --enable-parser=mpegaudio
++        --enable-parser=mpegvideo
++        --enable-parser=opus
++        --enable-parser=png
++        --enable-parser=vc1
++        --enable-parser=vorbis
++        --enable-parser=vp8
++        --enable-parser=vp9
+         # Lizenzfehler in FFmpegs configure: diese beiden LGPL-Filter linken GPL-Dateien
+         # (vsrc_perlin -> perlin.c, codecview -> qp_table.c sind GPL-2.0+), ohne von --enable-gpl abzuhaengen
+         --disable-filter=perlin
+diff --git a/packages/mpv.cmake b/packages/mpv.cmake
+index 4ce8d76..84328e2 100644
+--- a/packages/mpv.cmake
++++ b/packages/mpv.cmake
+@@ -1,6 +1,7 @@
+ # visiv LGPL build: mpv mit -Dgpl=false (LGPL-2.1+), gebaut als libmpv-2.dll (+ mpv.exe nur zum Testen).
+ # Entfernt gegenueber shinchiro: dvdnav/dvdread (GPL), rubberband (GPL), vapoursynth, luajit/lua,
+-# libsdl2, openal-soft, libarchive, libbluray, subrandr (Rust), libsixel, curl, vulkan.
++# libsdl2, openal-soft, libarchive, libbluray, subrandr (Rust), libsixel, curl, vulkan;
++# seit 07.11.2026 auch mujs/JavaScript (visiv laedt nie ein Skript, Fable K8a).
+ # Patch mpv-0001: Rueckportierung aus mpv master (1d15686142, Jul 2026): hwdec_d3d11egl findet
+ # EGL_EXT_device_query auch in den Client-Erweiterungen von ANGLE. Ohne diesen Patch faellt mpv im
+ # ANGLE/OpenGL-Pfad von media_kit auf d3d11va-copy zurueck, und vf=d3d11vpp (Intel/NVIDIA VSR) geht nicht.
+@@ -17,7 +18,6 @@ ExternalProject_Add(mpv
+         libjpeg
+         libzimg
+         uchardet
+-        mujs
+         shaderc
+         libplacebo
+         spirv-cross
+@@ -46,7 +46,7 @@ ExternalProject_Add(mpv
+         -Dhtml-build=disabled
+         -Dmanpage-build=disabled
+         -Dlua=disabled
+-        -Djavascript=enabled
++        -Djavascript=disabled
+         -Dlibarchive=disabled
+         -Dlibbluray=disabled
+         -Ddvdnav=disabled
+-- 
+2.43.0
+

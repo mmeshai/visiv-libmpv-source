@@ -19,9 +19,15 @@ Questions: support@visiv.tv
 
 | visiv version | libmpv-2.dll | Download (release) |
 |---|---|---|
-| 1.0.0 | mpv 0.41.0, FFmpeg 8.1.3, OpenSSL 3.5.9, built 2026-10-17 | [`libmpv-20261017-v0.41.0`](../../releases/tag/libmpv-20261017-v0.41.0) |
+| 1.0.0 – 1.0.2 | mpv 0.41.0, FFmpeg 8.1.3, OpenSSL 3.5.9, built 2026-10-17 | [`libmpv-20261017-v0.41.0`](../../releases/tag/libmpv-20261017-v0.41.0) |
+| from 1.1.0 | mpv 0.41.0, FFmpeg 8.1 (branch release/8.1 after 8.1.3), OpenSSL 3.5.9, built 2026-11-08 | [`libmpv-20261108-v0.41.0`](../../releases/tag/libmpv-20261108-v0.41.0) |
 
-The DLL inside visiv: SHA-256 `6e071dc45b7cc6933ba64a647928825f7e18724bae83fe876275c05440898175`, 62 034 446 bytes.
+The DLL inside visiv 1.0.0 – 1.0.2: SHA-256 `6e071dc45b7cc6933ba64a647928825f7e18724bae83fe876275c05440898175`, 62 034 446 bytes.
+The DLL inside visiv from 1.1.0: SHA-256 `597958de120165f041c25c7e39067452d9a84f312562dd0434a15eaf1f93a888`, 53 622 798 bytes. Since this build
+FFmpeg contains only the decoders, demuxers, protocols and parsers an IPTV player needs (an allow-list; see the recipe
+changes «Decoder/Demuxer/Protokolle nur nach Positivliste» and «endgueltiger Neubau vor dem Flight 1.1.0» in
+`recipe-changes/`), and FFmpeg carries backports from FFmpeg master for WebVTT subtitles in HLS plus one own change
+(`packages/ffmpeg-0007` … `ffmpeg-0011` in the recipe, each with its origin in the header).
 
 The release [`libmpv-20260930-v0.41.0`](../../releases/tag/libmpv-20260930-v0.41.0) contains the same sources and
 the same recipe; that DLL was built in a different folder and is not part of any published visiv version. The DLL of
@@ -42,7 +48,7 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 | `sources/winmd-0f1eae3bfa63.bundle` | git bundle of microsoft/winmd at the commit C++/WinRT pins (fetched while building the C++/WinRT generator) |
 | `sources/windows-rs-1445e73254b1-Windows.winmd` | Windows metadata from microsoft/windows-rs (input of the C++/WinRT headers), with its MIT/Apache licences |
 | `mpv-winbuild-cmake-visiv-<commit>.tar.xz` | the build recipe: shinchiro/mpv-winbuild-cmake at `05a60b3` plus our changes; all source patches are in its `packages/` folder |
-| `recipe-changes/` | our 7 changes to the recipe as a patch series (licence configuration without GPL parts, FFmpeg/mpv backports, OpenSSL 3.5 LTS) |
+| `recipe-changes/` | our changes to the recipe as a patch series (licence configuration without GPL parts, FFmpeg/mpv backports, OpenSSL 3.5 LTS; the FFmpeg allow-list of decoders, demuxers and protocols since `libmpv-20261102-v0.41.0` and of parsers since `libmpv-20261107-v0.41.0`, FreeType 2.15.0, HarfBuzz 15.1.0, mpv without JavaScript, and in `libmpv-20261108-v0.41.0` the three FFmpeg security backports `ffmpeg-0012`…`0017`) |
 | `offline/` | `ExternalProject.cmake` from CMake v3.31.6 (the recipe downloads it at configure time) and CMake's licence |
 | `manifest.tsv` | package, repository URL, upstream commit, archive, file counts, sparse-checkout patterns |
 | `build-offline.sh` | rebuilds `libmpv-2.dll` from these files without network access |
@@ -50,8 +56,8 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 
 ## Rebuilding
 
-Tested on Ubuntu 24.04 (WSL2) on 2026-10-17 with network access disabled (`unshare -rn`), from the release
-`libmpv-20261017-v0.41.0`: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
+Tested on Ubuntu 24.04 (WSL2) with network access disabled (`unshare -rn`), on 2026-10-17 from the release
+`libmpv-20261017-v0.41.0` and on 2026-11-08 from the release `libmpv-20261108-v0.41.0`, each in a new, empty folder: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
 configuration as the shipped one (apart from the build folder). The copy of this README inside a release archive
 can be older; follow the steps here.
 

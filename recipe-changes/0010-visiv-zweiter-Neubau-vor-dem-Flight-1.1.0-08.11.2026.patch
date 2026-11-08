@@ -1,0 +1,646 @@
+From d89595fa98c831ad4db4794f0357b8a9d68e4965 Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Sun, 8 Nov 2026 12:51:50 +0100
+Subject: [PATCH 10/10] visiv: zweiter Neubau vor dem Flight 1.1.0 (08.11.2026)
+ - FFmpeg-Sicherheits-Rueckports 0012-0017 (Fable F-L), 0011 gehaertet,
+ fribidi v1.0.18 / lcms2 2.20 / brotli v1.2.1 / fast_float v8.3.3 auf
+ Release-Tags
+
+---
+ packages/brotli.cmake                         |   1 +
+ packages/fast_float.cmake                     |   3 +-
+ ...h-up-an-enabled-subtitle-playlist-fr.patch |  25 +--
+ ...ng-fix-infinite-loop-in-av_strirepla.patch |  36 ++++
+ ...ec-return-EOF-on-exhausted-byte-rang.patch |  33 ++++
+ ...ion_info-avoid-stack-exhaustion-free.patch |  42 +++++
+ ...encryption_info-add-append_side_data.patch | 167 ++++++++++++++++++
+ ...t-mov-append-pssh-init-info-in-place.patch | 122 +++++++++++++
+ ...t-rtsp-limit-the-number-of-redirects.patch |  39 ++++
+ packages/ffmpeg.cmake                         |   5 +
+ packages/fribidi.cmake                        |   1 +
+ packages/lcms2.cmake                          |   1 +
+ 12 files changed, 463 insertions(+), 12 deletions(-)
+ create mode 100755 packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
+ create mode 100755 packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
+ create mode 100755 packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
+ create mode 100755 packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
+ create mode 100755 packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
+ create mode 100755 packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
+
+diff --git a/packages/brotli.cmake b/packages/brotli.cmake
+index 9316c17..6e30060 100644
+--- a/packages/brotli.cmake
++++ b/packages/brotli.cmake
+@@ -1,6 +1,7 @@
+ ExternalProject_Add(brotli
+     GIT_REPOSITORY https://github.com/google/brotli.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG db24a98aed38a16de78cc05ca15cdd8dc2a0d92d
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !tests !js !java !research"
+     UPDATE_COMMAND ""
+diff --git a/packages/fast_float.cmake b/packages/fast_float.cmake
+index 7bafdef..dd0dd3a 100644
+--- a/packages/fast_float.cmake
++++ b/packages/fast_float.cmake
+@@ -2,8 +2,7 @@ ExternalProject_Add(fast_float
+     GIT_REPOSITORY https://github.com/fastfloat/fast_float.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+     GIT_CLONE_FLAGS "--filter=tree:0"
+-    GIT_REMOTE_NAME origin
+-    GIT_TAG main
++    GIT_TAG dbeabeeb3e6791cb96994c2a7a084c36e62ccfb2
+     UPDATE_COMMAND ""
+     CONFIGURE_COMMAND ""
+     BUILD_COMMAND ""
+diff --git a/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch b/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
+index d96f1dd..0a183cd 100644
+--- a/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
++++ b/packages/ffmpeg-0011-avformat-hls-catch-up-an-enabled-subtitle-playlist-fr.patch
+@@ -1,8 +1,8 @@
+ From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+ From: "visiv (nnexd GmbH)" <support@visiv.tv>
+ Date: Sat, 7 Nov 2026 00:00:00 +0000
+-Subject: [PATCH] avformat/hls: catch up an enabled subtitle playlist from the
+- presented position
++Subject: [PATCH 11/17] avformat/hls: catch up an enabled subtitle playlist
++ from the presented position
+ 
+ Subtitle playlists are discarded until the caller selects their stream,
+ which a player usually does after avformat_find_stream_info() has already
+@@ -16,11 +16,11 @@ before what the player presents are dropped by the player itself.
+ 
+ visiv addition on top of the backport of master 729de963f906 (not in FFmpeg).
+ ---
+- libavformat/hls.c | 19 +++++++++++++++++++
+- 1 file changed, 19 insertions(+)
++ libavformat/hls.c | 24 ++++++++++++++++++++++++
++ 1 file changed, 24 insertions(+)
+ 
+ diff --git a/libavformat/hls.c b/libavformat/hls.c
+-index d59bea0..698d82f 100644
++index d59bea05bc..82bf14014b 100644
+ --- a/libavformat/hls.c
+ +++ b/libavformat/hls.c
+ @@ -229,6 +229,7 @@ typedef struct HLSContext {
+@@ -39,7 +39,7 @@ index d59bea0..698d82f 100644
+  
+      if ((ret = ffio_copy_url_options(s->pb, &c->avio_opts)) < 0)
+          return ret;
+-@@ -2640,6 +2642,19 @@ static int recheck_discard_flags(AVFormatContext *s, int first)
++@@ -2640,6 +2642,24 @@ static int recheck_discard_flags(AVFormatContext *s, int first)
+              if (c->cur_timestamp != AV_NOPTS_VALUE) {
+                  /* catch up */
+                  pls->seek_timestamp = c->cur_timestamp;
+@@ -48,8 +48,13 @@ index d59bea0..698d82f 100644
+ +                 * Keep the cues still shown there: catch up from up to three
+ +                 * target durations back, but not before playback (re)started. */
+ +                if (pls->is_subtitle) {
+-+                    pls->seek_timestamp = av_sat_sub64(pls->seek_timestamp,
+-+                                                       3 * pls->target_duration);
+++                    /* target_duration may be absurdly large (checked only
+++                     * against INT64_MAX/AV_TIME_BASE); 3 * td would overflow,
+++                     * so saturate. */
+++                    int64_t back = av_sat_add64(pls->target_duration,
+++                                                av_sat_add64(pls->target_duration,
+++                                                             pls->target_duration));
+++                    pls->seek_timestamp = av_sat_sub64(pls->seek_timestamp, back);
+ +                    if (c->restart_timestamp != AV_NOPTS_VALUE)
+ +                        pls->seek_timestamp = FFMAX(pls->seek_timestamp,
+ +                                                    c->restart_timestamp);
+@@ -59,7 +64,7 @@ index d59bea0..698d82f 100644
+                  pls->seek_flags = AVSEEK_FLAG_ANY;
+                  pls->seek_stream_index = -1;
+              }
+-@@ -2747,6 +2762,9 @@ retry:
++@@ -2747,6 +2767,9 @@ retry:
+                          pls->pkt->dts       != AV_NOPTS_VALUE)
+                          c->first_timestamp = av_rescale_q(pls->pkt->dts,
+                              get_timebase(pls), AV_TIME_BASE_Q);
+@@ -69,7 +74,7 @@ index d59bea0..698d82f 100644
+                  }
+  
+                  seg = current_segment(pls);
+-@@ -2976,6 +2994,7 @@ static int hls_read_seek(AVFormatContext *s, int stream_index,
++@@ -2976,6 +2999,7 @@ static int hls_read_seek(AVFormatContext *s, int stream_index,
+      }
+  
+      c->cur_timestamp = seek_timestamp;
+diff --git a/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch b/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
+new file mode 100755
+index 0000000..90dc030
+--- /dev/null
++++ b/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
+@@ -0,0 +1,36 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Joshua Rogers <MegaManSec@users.noreply.github.com>
++Date: Mon, 31 Aug 2026 15:31:50 +0200
++Subject: [PATCH 12/17] avutil/avstring: fix infinite loop in av_strireplace
++ with empty search string
++
++av_stristr() returns the input pointer unchanged for an empty needle,
++so an empty 'from' argument left pstr never advancing and caused
++av_strireplace() to loop forever (and grow the buffer unboundedly if
++'to' was non-empty). Return a duplicate of 'str' when 'from' is empty.
++
++Fixes: Timeout
++Fixes: q8954W25MJoa
++Fixes: AISLE-2026-0100-00001
++Found-by: Joshua Rogers <joshua.rogers@aisle.com>
++Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
++(cherry picked from commit ed27bfcbbbc0872c0195eaf4dd2c0c93b9f1778e)
++(cherry picked from commit fd2ff6dabf82714b0c61677f7cccf9d026cb019c)
++---
++ libavutil/avstring.c | 3 +++
++ 1 file changed, 3 insertions(+)
++
++diff --git a/libavutil/avstring.c b/libavutil/avstring.c
++index 281c5cdc88..d8c72a7c77 100644
++--- a/libavutil/avstring.c
+++++ b/libavutil/avstring.c
++@@ -234,6 +234,9 @@ char *av_strireplace(const char *str, const char *from, const char *to)
++     size_t tolen = strlen(to), fromlen = strlen(from);
++     AVBPrint pbuf;
++ 
+++    if (!fromlen)
+++        return av_strdup(str);
+++
++     av_bprint_init(&pbuf, 1, AV_BPRINT_SIZE_UNLIMITED);
++     while ((pstr2 = av_stristr(pstr, from))) {
++         av_bprint_append_data(&pbuf, pstr, pstr2 - pstr);
+diff --git a/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch b/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
+new file mode 100755
+index 0000000..1684748
+--- /dev/null
++++ b/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
+@@ -0,0 +1,33 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Michael Niedermayer <michael@niedermayer.cc>
++Date: Sun, 20 Sep 2026 00:04:04 +0200
++Subject: [PATCH 13/17] avformat/dashdec: return EOF when a byte-range segment
++ is exhausted
++
++Fixes: Timeout
++Fixes: t593bxSA0XOy
++Found during triage/review of the security report q8954W25MJoa
++Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
++(cherry picked from commit 403dd2ee396dbafc727fc7bf552ff41233811316)
++(cherry picked from commit 5188c3c8401da071538663cf26ed58069bee0d9a)
++---
++ libavformat/dashdec.c | 5 ++++-
++ 1 file changed, 4 insertions(+), 1 deletion(-)
++
++diff --git a/libavformat/dashdec.c b/libavformat/dashdec.c
++index 68b1104ebd..e92a1b4cfb 100644
++--- a/libavformat/dashdec.c
+++++ b/libavformat/dashdec.c
++@@ -1717,8 +1717,11 @@ static int read_from_url(struct representation *pls, struct fragment *seg,
++     int ret;
++ 
++     /* limit read if the fragment was only a part of a file */
++-    if (seg->size >= 0)
+++    if (seg->size >= 0) {
++         buf_size = FFMIN(buf_size, pls->cur_seg_size - pls->cur_seg_offset);
+++        if (buf_size <= 0)
+++            return AVERROR_EOF;
+++    }
++ 
++     ret = avio_read(pls->input, buf, buf_size);
++     if (ret > 0)
+diff --git a/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch b/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
+new file mode 100755
+index 0000000..c34f6f9
+--- /dev/null
++++ b/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
+@@ -0,0 +1,42 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Joshua Rogers <MegaManSec@users.noreply.github.com>
++Date: Mon, 31 Aug 2026 15:31:55 +0200
++Subject: [PATCH 14/17] avutil/encryption_info: avoid stack exhaustion freeing
++ init info list
++
++Fixes: Stack overflow
++Found-by: Joshua Rogers <joshua.rogers@aisle.com>
++Fixes: tyKGcmR25mD8
++(cherry picked from commit 969c7eb091989a664cb7bf66a1f02051cc46cb52)
++(cherry picked from commit ccd32a3918e33142264c3adf162b6ba73a8e8161)
++---
++ libavutil/encryption_info.c | 9 ++++++---
++ 1 file changed, 6 insertions(+), 3 deletions(-)
++
++diff --git a/libavutil/encryption_info.c b/libavutil/encryption_info.c
++index a3eb955d2d..6fc3e33842 100644
++--- a/libavutil/encryption_info.c
+++++ b/libavutil/encryption_info.c
++@@ -218,16 +218,19 @@ AVEncryptionInitInfo *av_encryption_init_info_alloc(
++ 
++ void av_encryption_init_info_free(AVEncryptionInitInfo *info)
++ {
++-    uint32_t i;
++-    if (info) {
+++    while (info) {
+++        AVEncryptionInitInfo *next = info->next;
+++        uint32_t i;
+++
++         for (i = 0; i < info->num_key_ids; i++) {
++             av_free(info->key_ids[i]);
++         }
++-        av_encryption_init_info_free(info->next);
++         av_free(info->system_id);
++         av_free(info->key_ids);
++         av_free(info->data);
++         av_free(info);
+++
+++        info = next;
++     }
++ }
++ 
+diff --git a/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch b/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
+new file mode 100755
+index 0000000..17a010a
+--- /dev/null
++++ b/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
+@@ -0,0 +1,167 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Michael Niedermayer <michael@niedermayer.cc>
++Date: Mon, 28 Sep 2026 15:38:10 +0200
++Subject: [PATCH 15/17] avutil/encryption_info: add
++ av_encryption_init_info_append_side_data()
++
++Appends to already serialized init info side data, growing it with
++av_fast_realloc(), so a demuxer can collect pssh records in linear time
++without depending on the side data format.
++
++(cherry picked from commit d1434518fbd03789e3e5dc0657a7a9f1123ce074)
++(cherry picked from commit 52edd389024406abd4425a48fc9952c4dd40fc27)
++---
++ libavutil/encryption_info.c       | 50 +++++++++++++++++++------------
++ libavutil/encryption_info.h       | 17 +++++++++++
++ libavutil/tests/encryption_info.c | 12 ++++++--
++ 3 files changed, 58 insertions(+), 21 deletions(-)
++
++diff --git a/libavutil/encryption_info.c b/libavutil/encryption_info.c
++index 6fc3e33842..9643840157 100644
++--- a/libavutil/encryption_info.c
+++++ b/libavutil/encryption_info.c
++@@ -19,6 +19,7 @@
++ #include <string.h>
++ 
++ #include "encryption_info.h"
+++#include "error.h"
++ #include "mem.h"
++ #include "intreadwrite.h"
++ 
++@@ -295,37 +296,36 @@ AVEncryptionInitInfo *av_encryption_init_info_get_side_data(
++     return ret;
++ }
++ 
++-uint8_t *av_encryption_init_info_add_side_data(const AVEncryptionInitInfo *info, size_t *side_data_size)
+++int av_encryption_init_info_append_side_data(uint8_t **side_data, size_t *side_data_size,
+++                                             unsigned int *allocated_size,
+++                                             const AVEncryptionInitInfo *info)
++ {
++     const AVEncryptionInitInfo *cur_info;
++     uint8_t *buffer, *cur_buffer;
++-    uint32_t i, init_info_count;
++-    uint64_t temp_side_data_size;
+++    uint32_t i;
+++    uint64_t init_info_count    = *side_data ? AV_RB32(*side_data) : 0;
+++    size_t   old_side_data_size = *side_data ? *side_data_size : 4;
+++    uint64_t new_side_data_size = old_side_data_size;
++ 
++-    temp_side_data_size = 4;
++-    init_info_count = 0;
++     for (cur_info = info; cur_info; cur_info = cur_info->next) {
++-        temp_side_data_size += (uint64_t)FF_ENCRYPTION_INIT_INFO_EXTRA + cur_info->system_id_size + cur_info->data_size;
++-        if (init_info_count == UINT32_MAX || temp_side_data_size > UINT32_MAX) {
++-            return NULL;
++-        }
+++        new_side_data_size += (uint64_t)FF_ENCRYPTION_INIT_INFO_EXTRA + cur_info->system_id_size + cur_info->data_size;
+++        if (init_info_count == UINT32_MAX || new_side_data_size > UINT32_MAX)
+++            return AVERROR(EINVAL);
++         init_info_count++;
++ 
++         if (cur_info->num_key_ids) {
++-            temp_side_data_size += (uint64_t)cur_info->num_key_ids * cur_info->key_id_size;
++-            if (temp_side_data_size > UINT32_MAX) {
++-                return NULL;
++-            }
+++            new_side_data_size += (uint64_t)cur_info->num_key_ids * cur_info->key_id_size;
+++            if (new_side_data_size > UINT32_MAX)
+++                return AVERROR(EINVAL);
++         }
++     }
++-    *side_data_size = temp_side_data_size;
++ 
++-    cur_buffer = buffer = av_malloc(*side_data_size);
+++    buffer = av_fast_realloc(*side_data, allocated_size, new_side_data_size);
++     if (!buffer)
++-        return NULL;
+++        return AVERROR(ENOMEM);
++ 
++-    AV_WB32(cur_buffer, init_info_count);
++-    cur_buffer += 4;
+++    AV_WB32(buffer, init_info_count);
+++    cur_buffer = buffer + old_side_data_size;
++     for (cur_info = info; cur_info; cur_info = cur_info->next) {
++         AV_WB32(cur_buffer,      cur_info->system_id_size);
++         AV_WB32(cur_buffer +  4, cur_info->num_key_ids);
++@@ -345,5 +345,17 @@ uint8_t *av_encryption_init_info_add_side_data(const AVEncryptionInitInfo *info,
++         }
++     }
++ 
++-    return buffer;
+++    *side_data      = buffer;
+++    *side_data_size = new_side_data_size;
+++    return 0;
+++}
+++
+++uint8_t *av_encryption_init_info_add_side_data(const AVEncryptionInitInfo *info, size_t *side_data_size)
+++{
+++    uint8_t *side_data = NULL;
+++    unsigned int allocated_size = 0;
+++
+++    if (av_encryption_init_info_append_side_data(&side_data, side_data_size, &allocated_size, info) < 0)
+++        return NULL;
+++    return side_data;
++ }
++diff --git a/libavutil/encryption_info.h b/libavutil/encryption_info.h
++index 8fe7ebfe43..6fd39cf02c 100644
++--- a/libavutil/encryption_info.h
+++++ b/libavutil/encryption_info.h
++@@ -202,4 +202,21 @@ AVEncryptionInitInfo *av_encryption_init_info_get_side_data(
++ uint8_t *av_encryption_init_info_add_side_data(
++     const AVEncryptionInitInfo *info, size_t *side_data_size);
++ 
+++/**
+++ * Appends a copy of the given encryption init info list to encryption init
+++ * info side data, growing the side data with av_fast_realloc().
+++ *
+++ * @param side_data      Side data created by this function or
+++ *                       av_encryption_init_info_add_side_data(), *side_data
+++ *                       may be NULL to create new side data.
+++ * @param side_data_size Size of *side_data.
+++ * @param allocated_size Allocated size of *side_data, as for av_fast_realloc().
+++ * @param info           The list to append.
+++ * @return 0 on success, a negative AVERROR code on failure, in which case
+++ *         *side_data and *side_data_size are unchanged.
+++ */
+++int av_encryption_init_info_append_side_data(
+++    uint8_t **side_data, size_t *side_data_size, unsigned int *allocated_size,
+++    const AVEncryptionInitInfo *info);
+++
++ #endif /* AVUTIL_ENCRYPTION_INFO_H */
++diff --git a/libavutil/tests/encryption_info.c b/libavutil/tests/encryption_info.c
++index 55c668c6d5..d8f0187ef9 100644
++--- a/libavutil/tests/encryption_info.c
+++++ b/libavutil/tests/encryption_info.c
++@@ -141,8 +141,9 @@ static AVEncryptionInitInfo *create_init_info(void)
++ static void run_encryption_init_info_test(void)
++ {
++     AVEncryptionInitInfo *info, *copy;
++-    uint8_t *side_data;
++-    size_t side_data_size;
+++    uint8_t *side_data, *appended;
+++    size_t side_data_size, appended_size;
+++    unsigned int allocated_size = 0;
++ 
++     info = create_init_info();
++ 
++@@ -157,6 +158,8 @@ static void run_encryption_init_info_test(void)
++ 
++     // Make the first init info different from the second to test the correct order.
++     memset(info->system_id, 0, info->system_id_size);
+++    appended = av_encryption_init_info_add_side_data(info, &appended_size);
+++    av_assert0(appended);
++     info->next = create_init_info();
++     side_data = av_encryption_init_info_add_side_data(info, &side_data_size);
++     av_assert0(side_data);
++@@ -164,6 +167,11 @@ static void run_encryption_init_info_test(void)
++     av_assert0(copy);
++     av_assert0(compare_encryption_init_info(info, copy) == 0);
++     av_encryption_init_info_free(copy);
+++
+++    av_assert0(av_encryption_init_info_append_side_data(&appended, &appended_size, &allocated_size, info->next) == 0);
+++    av_assert0(appended_size == side_data_size);
+++    av_assert0(memcmp(appended, side_data, side_data_size) == 0);
+++    av_free(appended);
++     av_free(side_data);
++ 
++     av_encryption_init_info_free(info);
+diff --git a/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch b/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
+new file mode 100755
+index 0000000..606b55c
+--- /dev/null
++++ b/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
+@@ -0,0 +1,122 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: Michael Niedermayer <michael@niedermayer.cc>
++Date: Mon, 28 Sep 2026 18:41:48 +0200
++Subject: [PATCH 16/17] avformat/mov: append pssh init info in place instead of
++ re-parsing the side data
++
++Replaces O(n^2) by O(n) implementation
++
++Fixes: Timeout
++Found during triage/review of the security report
++Fixes: tyKGcmR25mD8
++
++(cherry picked from commit 71403a21b02a92b925e26e609e9bd3e48df451cf)
++(cherry picked from commit 4608cdca673192b83d49ec1b293cfdad1b4b6169)
++---
++ libavformat/isom.h |  2 ++
++ libavformat/mov.c  | 57 +++++++++++++++++++++++-----------------------
++ 2 files changed, 30 insertions(+), 29 deletions(-)
++
++diff --git a/libavformat/isom.h b/libavformat/isom.h
++index c7264defb6..4c5402223d 100644
++--- a/libavformat/isom.h
+++++ b/libavformat/isom.h
++@@ -357,6 +357,8 @@ typedef struct MOVContext {
++     int has_looked_for_mfra;
++     int use_tfdt;
++     MOVFragmentIndex frag_index;
+++    uint8_t *pssh_side_data;
+++    unsigned int pssh_side_data_allocated;
++     int atom_depth;
++     unsigned int aax_mode;  ///< 'aax' file has been detected
++     uint8_t file_key[20];
++diff --git a/libavformat/mov.c b/libavformat/mov.c
++index 2941455937..4e12254eeb 100644
++--- a/libavformat/mov.c
+++++ b/libavformat/mov.c
++@@ -7925,12 +7925,12 @@ static int mov_read_saio(MOVContext *c, AVIOContext *pb, MOVAtom atom)
++ 
++ static int mov_read_pssh(MOVContext *c, AVIOContext *pb, MOVAtom atom)
++ {
++-    AVEncryptionInitInfo *info, *old_init_info;
+++    AVEncryptionInitInfo *info;
++     uint8_t **key_ids;
++     AVStream *st;
++-    const AVPacketSideData *old_side_data;
++-    uint8_t *side_data, *extra_data;
++-    size_t side_data_size;
+++    AVPacketSideData *old_side_data = NULL;
+++    uint8_t *side_data = NULL, *extra_data;
+++    size_t side_data_size = 0;
++     int ret = 0;
++     unsigned int version, kid_count, extra_data_size, alloc_size = 0;
++ 
++@@ -8007,37 +8007,35 @@ static int mov_read_pssh(MOVContext *c, AVIOContext *pb, MOVAtom atom)
++     info->data = extra_data;
++     info->data_size = extra_data_size;
++ 
++-    // If there is existing initialization data, append to the list.
++-    old_side_data = av_packet_side_data_get(st->codecpar->coded_side_data, st->codecpar->nb_coded_side_data,
++-                                            AV_PKT_DATA_ENCRYPTION_INIT_INFO);
+++    for (int i = 0; i < st->codecpar->nb_coded_side_data; i++)
+++        if (st->codecpar->coded_side_data[i].type == AV_PKT_DATA_ENCRYPTION_INIT_INFO)
+++            old_side_data = &st->codecpar->coded_side_data[i];
+++
+++    // If there is existing initialization data, append the new record to it.
++     if (old_side_data) {
++-        old_init_info = av_encryption_init_info_get_side_data(old_side_data->data, old_side_data->size);
++-        if (old_init_info) {
++-            // Append to the end of the list.
++-            for (AVEncryptionInitInfo *cur = old_init_info;; cur = cur->next) {
++-                if (!cur->next) {
++-                    cur->next = info;
++-                    break;
++-                }
++-            }
++-            info = old_init_info;
++-        } else {
++-            // Assume existing side-data will be valid, so the only error we could get is OOM.
++-            ret = AVERROR(ENOMEM);
++-            goto finish;
++-        }
+++        side_data      = old_side_data->data;
+++        side_data_size = old_side_data->size;
++     }
+++    if (!old_side_data || side_data != c->pssh_side_data)
+++        c->pssh_side_data_allocated = 0;
++ 
++-    side_data = av_encryption_init_info_add_side_data(info, &side_data_size);
++-    if (!side_data) {
+++    ret = av_encryption_init_info_append_side_data(&side_data, &side_data_size,
+++                                                   &c->pssh_side_data_allocated, info);
+++    if (ret < 0)
+++        goto finish;
+++
+++    if (old_side_data) {
+++        old_side_data->data = side_data;
+++        old_side_data->size = side_data_size;
+++    } else if (!av_packet_side_data_add(&st->codecpar->coded_side_data,
+++                                        &st->codecpar->nb_coded_side_data,
+++                                        AV_PKT_DATA_ENCRYPTION_INIT_INFO,
+++                                        side_data, side_data_size, 0)) {
+++        av_free(side_data);
++         ret = AVERROR(ENOMEM);
++         goto finish;
++     }
++-    if (!av_packet_side_data_add(&st->codecpar->coded_side_data,
++-                                 &st->codecpar->nb_coded_side_data,
++-                                 AV_PKT_DATA_ENCRYPTION_INIT_INFO,
++-                                 side_data, side_data_size, 0))
++-        av_free(side_data);
+++    c->pssh_side_data = side_data;
++ 
++ finish:
++     av_encryption_init_info_free(info);
++@@ -11266,6 +11264,7 @@ static int mov_switch_root(AVFormatContext *s, int64_t target, int index)
++     }
++ 
++     mov->found_mdat = 0;
+++    mov->pssh_side_data = NULL;
++ 
++     ret = mov_read_default(mov, s->pb, (MOVAtom){ AV_RL32("root"), INT64_MAX });
++     if (ret < 0)
+diff --git a/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch b/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
+new file mode 100755
+index 0000000..39dd53a
+--- /dev/null
++++ b/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
+@@ -0,0 +1,39 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: BapToutatis <monsterbat02@gmail.com>
++Date: Tue, 6 Oct 2026 06:22:28 +0200
++Subject: [PATCH 17/17] avformat/rtsp: limit the number of redirects
++
++Fixes: 2OgPp3duxpWM
++Found-by: BapToutatis
++Endless redirect loop Replicated through UnModified FFmpeg with rogue RTSP servers
++Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
++(cherry picked from commit f5d4fd186c68913240c4f6e9cda98443e1518b34)
++(cherry picked from commit 8a3eff01e7161e3833e261e747785b8700ffdab1)
++---
++ libavformat/rtsp.c | 6 ++++++
++ 1 file changed, 6 insertions(+)
++
++diff --git a/libavformat/rtsp.c b/libavformat/rtsp.c
++index f3c76e8e4d..c07eef8cfe 100644
++--- a/libavformat/rtsp.c
+++++ b/libavformat/rtsp.c
++@@ -1903,6 +1903,7 @@ int ff_rtsp_connect(AVFormatContext *s)
++     int port, err, tcp_fd;
++     RTSPMessageHeader reply1, *reply = &reply1;
++     int lower_transport_mask = 0;
+++    int redirects = 0;
++     int default_port = RTSP_DEFAULT_PORT;
++     int https_tunnel = 0;
++     char real_challenge[64] = "";
++@@ -2209,6 +2210,11 @@ redirect:
++     if (reply->status_code >=300 && reply->status_code < 400 && s->iformat) {
++         int ret;
++ 
+++        if (redirects++ >= 8 /* MAX_RTSP_REDIRECTS */) {
+++            av_log(s, AV_LOG_ERROR, "Too many RTSP redirects\n");
+++            err = AVERROR(EIO);
+++            goto fail2;
+++        }
++         if (!rtsp_url_same_origin(s->url, reply->location)) {
++             memset(rt->auth, 0, sizeof(rt->auth));
++             memset(&rt->auth_state, 0, sizeof(rt->auth_state));
+diff --git a/packages/ffmpeg.cmake b/packages/ffmpeg.cmake
+index f16661c..2c4a683 100644
+--- a/packages/ffmpeg.cmake
++++ b/packages/ffmpeg.cmake
+@@ -11,6 +11,11 @@
+ #   Ohne sie zeigt 8.1 WebVTT in HLS-Listen gar nicht oder zu frueh (Befund 03.11.2026). Rueckport ohne doc/ und tests/.
+ # + ffmpeg-0011 (eigener Zusatz visiv): eine spaet gewaehlte Untertitel-Liste ab der Stelle aufholen, die der Player
+ #   noch zeigt (bis 3 Segmente vor der Leseposition, nie vor Start/Spulziel) - sonst fehlt die erste Zeile im Live-TV.
++#   08.11.2026 gehaertet (3*target_duration gesaettigt, Fable F-L-4).
++# + ffmpeg-0012..0017 (08.11.2026, Sicherheits-Rueckports aus Fable F-L, je zeilengleich mit FFmpeg master):
++#   CVE-2026-107677 DASH-Endlosschleife (0012 avstring ed27bfcbbb, 0013 dashdec 403dd2ee39),
++#   CVE-2026-107678 MP4-pssh Stack+O(n^2) (0014 969c7eb091, 0015 d1434518fb mit FATE, 0016 mov 71403a21b0),
++#   CVE-2026-107696 RTSP-Umleitungsschleife (0017 f5d4fd186c). release/8.1 weiter a35157abb (kein n8.1.4).
+ ExternalProject_Add(ffmpeg
+     DEPENDS
+         amf-headers
+diff --git a/packages/fribidi.cmake b/packages/fribidi.cmake
+index 40455a4..3b8e47b 100644
+--- a/packages/fribidi.cmake
++++ b/packages/fribidi.cmake
+@@ -1,6 +1,7 @@
+ ExternalProject_Add(fribidi
+     GIT_REPOSITORY https://github.com/fribidi/fribidi.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG 15393e4937aa95bcf865d92143735746aeb654fa
+     GIT_CLONE_FLAGS "--sparse --filter=tree:0"
+     GIT_CLONE_POST_COMMAND "sparse-checkout set --no-cone /* !test"
+     UPDATE_COMMAND ""
+diff --git a/packages/lcms2.cmake b/packages/lcms2.cmake
+index a5a7a08..5d394d4 100644
+--- a/packages/lcms2.cmake
++++ b/packages/lcms2.cmake
+@@ -5,6 +5,7 @@ ExternalProject_Add(lcms2
+         zlib
+     GIT_REPOSITORY https://github.com/mm2/Little-CMS.git
+     SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_TAG 7717fce0d85447ef3b2df0cca2e99207c15eeecd
+     GIT_CLONE_FLAGS "--filter=tree:0"
+     UPDATE_COMMAND ""
+     CONFIGURE_COMMAND ${EXEC} CONF=1 meson setup <BINARY_DIR> <SOURCE_DIR>
+-- 
+2.43.0
+
