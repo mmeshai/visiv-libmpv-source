@@ -1,7 +1,7 @@
 From 500b5831690b61662f4ab07a1073ffeec7209a17 Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Wed, 30 Sep 2026 21:46:26 +0200
-Subject: [PATCH 06/10] visiv: FFmpeg-Filter perlin/codecview aus (linken
+Subject: [PATCH 06/11] visiv: FFmpeg-Filter perlin/codecview aus (linken
  GPL-Dateien trotz --disable-gpl)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>

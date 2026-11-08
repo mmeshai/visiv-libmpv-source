@@ -1,7 +1,7 @@
 From 434aa36bb4f322941dcb622e585346f650355aba Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Wed, 30 Sep 2026 21:16:15 +0200
-Subject: [PATCH 02/10] visiv: vulkan-header fuer libplacebo, Patch-Reihe ohne
+Subject: [PATCH 02/11] visiv: vulkan-header fuer libplacebo, Patch-Reihe ohne
  NVIDIA-HDR-Formatpatch, refqueue-Abhaengigkeit
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>

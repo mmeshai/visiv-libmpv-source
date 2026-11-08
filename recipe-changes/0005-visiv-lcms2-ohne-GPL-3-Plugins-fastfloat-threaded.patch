@@ -1,7 +1,7 @@
 From 2d56298e552513bccc5c1eb5dd03188c4135cade Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Wed, 30 Sep 2026 21:44:20 +0200
-Subject: [PATCH 05/10] visiv: lcms2 ohne GPL-3-Plugins (fastfloat, threaded)
+Subject: [PATCH 05/11] visiv: lcms2 ohne GPL-3-Plugins (fastfloat, threaded)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 ---

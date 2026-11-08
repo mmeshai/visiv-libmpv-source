@@ -1,7 +1,7 @@
 From 4377286ebe0e09ab5421219ca5e891ed1edfe90c Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Wed, 30 Sep 2026 20:58:59 +0200
-Subject: [PATCH 01/10] visiv: LGPL-Konfiguration (FFmpeg n8.1.3 ohne GPL, mpv
+Subject: [PATCH 01/11] visiv: LGPL-Konfiguration (FFmpeg n8.1.3 ohne GPL, mpv
  v0.41.0 -Dgpl=false + Rueckportierungen)
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>

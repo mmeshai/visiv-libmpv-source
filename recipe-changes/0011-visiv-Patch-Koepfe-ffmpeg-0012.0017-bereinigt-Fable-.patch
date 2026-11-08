@@ -1,0 +1,91 @@
+From 583a5e906c8ae5dd4d486dea5d83ee5eaf887396 Mon Sep 17 00:00:00 2001
+From: mpvbuild <mpvbuild@localhost>
+Date: Sun, 8 Nov 2026 17:48:17 +0100
+Subject: [PATCH 11/11] visiv: Patch-Koepfe ffmpeg-0012..0017 bereinigt (Fable
+ F-L2-2) - zweite "cherry picked from"-Zeile entfernt
+
+Die zweite Zeile nannte Zwischenstaende des lokalen Klons beim Zurueckportieren, die es bei FFmpeg nicht gibt. Nur Kopfzeilen, kein Code: die 17 Patches auf a35157abb ergeben denselben Quellbaum (Tree 8169743328886b9f319ebec2232b9a656b0ba15d) wie der Bau vom 08.11.2026 (Rezept d89595f, FFmpeg n8.1.3-51-g5ccd4fd49).
+---
+ ...-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch | 1 -
+ ...0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch | 1 -
+ ...0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch | 1 -
+ ...ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch | 1 -
+ ...ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch | 1 -
+ ...ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch | 1 -
+ 6 files changed, 6 deletions(-)
+
+diff --git a/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch b/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
+index 90dc030..67cb201 100755
+--- a/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
++++ b/packages/ffmpeg-0012-avutil-avstring-fix-infinite-loop-in-av_strirepla.patch
+@@ -15,7 +15,6 @@ Fixes: AISLE-2026-0100-00001
+ Found-by: Joshua Rogers <joshua.rogers@aisle.com>
+ Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+ (cherry picked from commit ed27bfcbbbc0872c0195eaf4dd2c0c93b9f1778e)
+-(cherry picked from commit fd2ff6dabf82714b0c61677f7cccf9d026cb019c)
+ ---
+  libavutil/avstring.c | 3 +++
+  1 file changed, 3 insertions(+)
+diff --git a/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch b/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
+index 1684748..f1f4d91 100755
+--- a/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
++++ b/packages/ffmpeg-0013-avformat-dashdec-return-EOF-on-exhausted-byte-rang.patch
+@@ -9,7 +9,6 @@ Fixes: t593bxSA0XOy
+ Found during triage/review of the security report q8954W25MJoa
+ Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+ (cherry picked from commit 403dd2ee396dbafc727fc7bf552ff41233811316)
+-(cherry picked from commit 5188c3c8401da071538663cf26ed58069bee0d9a)
+ ---
+  libavformat/dashdec.c | 5 ++++-
+  1 file changed, 4 insertions(+), 1 deletion(-)
+diff --git a/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch b/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
+index c34f6f9..410e3c6 100755
+--- a/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
++++ b/packages/ffmpeg-0014-avutil-encryption_info-avoid-stack-exhaustion-free.patch
+@@ -8,7 +8,6 @@ Fixes: Stack overflow
+ Found-by: Joshua Rogers <joshua.rogers@aisle.com>
+ Fixes: tyKGcmR25mD8
+ (cherry picked from commit 969c7eb091989a664cb7bf66a1f02051cc46cb52)
+-(cherry picked from commit ccd32a3918e33142264c3adf162b6ba73a8e8161)
+ ---
+  libavutil/encryption_info.c | 9 ++++++---
+  1 file changed, 6 insertions(+), 3 deletions(-)
+diff --git a/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch b/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
+index 17a010a..31c514d 100755
+--- a/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
++++ b/packages/ffmpeg-0015-avutil-encryption_info-add-append_side_data.patch
+@@ -9,7 +9,6 @@ av_fast_realloc(), so a demuxer can collect pssh records in linear time
+ without depending on the side data format.
+ 
+ (cherry picked from commit d1434518fbd03789e3e5dc0657a7a9f1123ce074)
+-(cherry picked from commit 52edd389024406abd4425a48fc9952c4dd40fc27)
+ ---
+  libavutil/encryption_info.c       | 50 +++++++++++++++++++------------
+  libavutil/encryption_info.h       | 17 +++++++++++
+diff --git a/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch b/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
+index 606b55c..fbc0d19 100755
+--- a/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
++++ b/packages/ffmpeg-0016-avformat-mov-append-pssh-init-info-in-place.patch
+@@ -11,7 +11,6 @@ Found during triage/review of the security report
+ Fixes: tyKGcmR25mD8
+ 
+ (cherry picked from commit 71403a21b02a92b925e26e609e9bd3e48df451cf)
+-(cherry picked from commit 4608cdca673192b83d49ec1b293cfdad1b4b6169)
+ ---
+  libavformat/isom.h |  2 ++
+  libavformat/mov.c  | 57 +++++++++++++++++++++++-----------------------
+diff --git a/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch b/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
+index 39dd53a..5454fb2 100755
+--- a/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
++++ b/packages/ffmpeg-0017-avformat-rtsp-limit-the-number-of-redirects.patch
+@@ -8,7 +8,6 @@ Found-by: BapToutatis
+ Endless redirect loop Replicated through UnModified FFmpeg with rogue RTSP servers
+ Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+ (cherry picked from commit f5d4fd186c68913240c4f6e9cda98443e1518b34)
+-(cherry picked from commit 8a3eff01e7161e3833e261e747785b8700ffdab1)
+ ---
+  libavformat/rtsp.c | 6 ++++++
+  1 file changed, 6 insertions(+)
+-- 
+2.43.0
+
