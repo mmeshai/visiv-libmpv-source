@@ -1,7 +1,7 @@
 From 7f80472f156821093d54f73da75baca17d9b8eda Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Wed, 30 Sep 2026 21:33:45 +0200
-Subject: [PATCH 04/11] visiv: d3d11vpp-Deinterlacing-Rueckportierungen
+Subject: [PATCH 04/14] visiv: d3d11vpp-Deinterlacing-Rueckportierungen
  entfernt (Regression auf Intel Arc), nur d3d11egl-Fix
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>

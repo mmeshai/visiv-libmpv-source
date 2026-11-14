@@ -1,8 +1,9 @@
-# visiv – source code of libmpv-2.dll
+# visiv – source code of libmpv (libmpv-2.dll for Windows, libmpv.so for Android)
 
-visiv is an IPTV player for Windows by nnexd GmbH, Halden 28, 8604 Volketswil, Switzerland. For playback it uses
-the library **libmpv** (mpv with FFmpeg and further components), shipped as the separate file `libmpv-2.dll` under
-the **GNU Lesser General Public License, version 3 or later**.
+visiv is an IPTV player for Windows and Android by nnexd GmbH, Halden 28, 8604 Volketswil, Switzerland. For playback
+it uses the library **libmpv** (mpv with FFmpeg and further components), shipped as the separate file `libmpv-2.dll`
+(Windows) or `libmpv.so` (Android, one per processor type) under the **GNU Lesser General Public License, version 3
+or later**. The Windows part follows directly below; Android has its own section further down.
 
 This repository provides the **complete corresponding source code** of that file: every component built into it at
 the exact version, our changes, the build recipe and a script that rebuilds the DLL without network access. visiv's
@@ -20,10 +21,15 @@ Questions: support@visiv.tv
 | visiv version | libmpv-2.dll | Download (release) |
 |---|---|---|
 | 1.0.0 – 1.0.2 | mpv 0.41.0, FFmpeg 8.1.3, OpenSSL 3.5.9, built 2026-10-17 | [`libmpv-20261017-v0.41.0`](../../releases/tag/libmpv-20261017-v0.41.0) |
-| from 1.1.0 | mpv 0.41.0, FFmpeg 8.1 (branch release/8.1 after 8.1.3), OpenSSL 3.5.9, built 2026-11-08 | [`libmpv-20261108-v0.41.0`](../../releases/tag/libmpv-20261108-v0.41.0) |
+| – (published, never shipped: replaced before 1.1.0) | mpv 0.41.0, FFmpeg 8.1 (branch release/8.1 after 8.1.3), OpenSSL 3.5.9, built 2026-11-08 | [`libmpv-20261108-v0.41.0`](../../releases/tag/libmpv-20261108-v0.41.0) |
+| from 1.1.0 | mpv 0.41.0 with backports, FFmpeg 8.1 (branch release/8.1 after 8.1.3) with 160 backports from FFmpeg master, OpenSSL 3.5.9, built 2026-11-14 | [`libmpv-20261114-v0.41.0`](../../releases/tag/libmpv-20261114-v0.41.0) |
 
 The DLL inside visiv 1.0.0 – 1.0.2: SHA-256 `6e071dc45b7cc6933ba64a647928825f7e18724bae83fe876275c05440898175`, 62 034 446 bytes.
-The DLL inside visiv from 1.1.0: SHA-256 `597958de120165f041c25c7e39067452d9a84f312562dd0434a15eaf1f93a888`, 53 622 798 bytes. Since this build
+The DLL of 2026-11-08: SHA-256 `597958de120165f041c25c7e39067452d9a84f312562dd0434a15eaf1f93a888`, 53 622 798 bytes.
+The DLL inside visiv from 1.1.0: SHA-256 `78a83889754f2244cba57a6c5156642362b2664a7a3ca3d313e2bc5042489e70`, 52 078 606 bytes. It adds
+security fixes from upstream to the build of 2026-11-08 (FFmpeg `packages/ffmpeg-0018` … `ffmpeg-0179`, the last one an HLS seek fix, mpv `mpv-0002` …
+`mpv-0007`, FreeType, zlib-ng and libunibreak `freetype2-0001` …, `zlib-0001` …, `libunibreak-0001`, each with its origin in
+the header) and builds OpenSSL without certificate compression (no brotli, zstd or zlib in OpenSSL). Since the build of 2026-11-08
 FFmpeg contains only the decoders, demuxers, protocols and parsers an IPTV player needs (an allow-list; see the recipe
 changes «Decoder/Demuxer/Protokolle nur nach Positivliste» and «endgueltiger Neubau vor dem Flight 1.1.0» in
 `recipe-changes/`), and FFmpeg carries backports from FFmpeg master for WebVTT subtitles in HLS plus one own change
@@ -48,7 +54,7 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 | `sources/winmd-0f1eae3bfa63.bundle` | git bundle of microsoft/winmd at the commit C++/WinRT pins (fetched while building the C++/WinRT generator) |
 | `sources/windows-rs-1445e73254b1-Windows.winmd` | Windows metadata from microsoft/windows-rs (input of the C++/WinRT headers), with its MIT/Apache licences |
 | `mpv-winbuild-cmake-visiv-<commit>.tar.xz` | the build recipe: shinchiro/mpv-winbuild-cmake at `05a60b3` plus our changes; all source patches are in its `packages/` folder |
-| `recipe-changes/` | our changes to the recipe as a patch series (licence configuration without GPL parts, FFmpeg/mpv backports, OpenSSL 3.5 LTS; the FFmpeg allow-list of decoders, demuxers and protocols since `libmpv-20261102-v0.41.0` and of parsers since `libmpv-20261107-v0.41.0`, FreeType 2.15.0, HarfBuzz 15.1.0, mpv without JavaScript, and in `libmpv-20261108-v0.41.0` the three FFmpeg security backports `ffmpeg-0012`…`0017`; its last change only removes a wrong second «cherry picked from» line from the headers of `ffmpeg-0012`…`0017` – the DLL was built from the recipe state just before it, with the same code) |
+| `recipe-changes/` | our changes to the recipe as a patch series (licence configuration without GPL parts, FFmpeg/mpv backports, OpenSSL 3.5 LTS; the FFmpeg allow-list of decoders, demuxers and protocols since `libmpv-20261102-v0.41.0` and of parsers since `libmpv-20261107-v0.41.0`, FreeType 2.15.0, HarfBuzz 15.1.0, mpv without JavaScript, in `libmpv-20261108-v0.41.0` the three FFmpeg security backports `ffmpeg-0012`…`0017` and a header fix of these patches, and in `libmpv-20261114-v0.41.0` (changes 0012–0014) the security backports `ffmpeg-0018`…`0179` with the HLS seek fix `caa3fa6af0`, `mpv-0002`…`0007`, FreeType, zlib-ng and libunibreak and OpenSSL without brotli/zstd/zlib) |
 | `offline/` | `ExternalProject.cmake` from CMake v3.31.6 (the recipe downloads it at configure time) and CMake's licence |
 | `manifest.tsv` | package, repository URL, upstream commit, archive, file counts, sparse-checkout patterns |
 | `build-offline.sh` | rebuilds `libmpv-2.dll` from these files without network access |
@@ -57,7 +63,8 @@ One archive `visiv-libmpv-source-<release>.tar` (the files inside are already co
 ## Rebuilding
 
 Tested on Ubuntu 24.04 (WSL2) with network access disabled (`unshare -rn`), on 2026-10-17 from the release
-`libmpv-20261017-v0.41.0` and on 2026-11-08 from the release `libmpv-20261108-v0.41.0`, each in a new, empty folder: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
+`libmpv-20261017-v0.41.0`, on 2026-11-08 from the release `libmpv-20261108-v0.41.0` and on 2026-11-14 from the release
+`libmpv-20261114-v0.41.0`, each in a new, empty folder: the rebuilt DLL has the same exports, the same imports and the same embedded FFmpeg and mpv
 configuration as the shipped one (apart from the build folder). The copy of this README inside a release archive
 can be older; follow the steps here.
 
@@ -95,18 +102,67 @@ The rebuilt DLL is not bit-identical to the shipped one (build paths, time stamp
 the commit ids of the local git repositories, e.g. `mpv v0.41.0-dev-g…` instead of `mpv v0.41.0-1-g…`), but it is
 built from the same sources with the same configuration.
 
+## Android (libmpv.so)
+
+The Android version of visiv ships `libmpv.so` (and the small helper `libmediakitandroidhelper.so`, MIT) for
+`arm64-v8a` and `armeabi-v7a`; `x86_64` is built for the emulator only. It is built from **the same sources and the same
+patch series** as the Windows DLL of the same date, without the Windows parts, plus two Android-only changes:
+`ffmpeg-android-0001` (marks MediaCodec frames of interlaced H.264 as interlaced, own change of visiv) and
+`mpv-android-0001` (`mpv_lavc_set_java_vm`). Android API level 26 (Android 8.0) or newer.
+
+| visiv for Android | libmpv.so | Download (release) |
+|---|---|---|
+| from the first version | mpv 0.41.0 and FFmpeg 8.1 with the same backports as the Windows build of 2026-11-14, OpenSSL 3.5.9, NDK r28c, built 2026-11-14 | [`libmpv-android-20261114-v0.41.0`](../../releases/tag/libmpv-android-20261114-v0.41.0) |
+
+SHA-256 of the shipped files (release `libmpv-android-20261114-v0.41.0`):
+
+| File | SHA-256 | Bytes |
+|---|---|---|
+| `arm64-v8a/libmpv.so` | `956198f2b662d5dd575f627b973ccc541096d133e666fb18b9a1eb929f9dfc8c` | 28 976 352 |
+| `arm64-v8a/libmediakitandroidhelper.so` | `fa138d35d6067d3ac2336769e740118ebf6df5f053e42a41930d1f33a1da1dce` | 334 536 |
+| `armeabi-v7a/libmpv.so` | `8832b123d6300163e3f9dd0db2f4a24ca703c9d1ecfd47afa85672b8ceabbbdb` | 24 707 912 |
+| `armeabi-v7a/libmediakitandroidhelper.so` | `7969c50307e501e0c336261a649a177078ccf4cb56b81c58375afd1aed96046f` | 192 504 |
+
+**Contents of an Android release:** one archive `visiv-libmpv-source-libmpv-android-<date>-v0.41.0.tar`. Unpacked it
+is itself a build folder: `quellen/sources/` (every component as a tarball at the exact commit – the same files as the
+Windows release of the source date, listed in `manifest.tsv`), `quellen/extra/` (media-kit-android-helper source, MIT,
+and meson 1.12.1 as a build tool), `rezept/` (`build.sh` with all build switches, all patches: the FFmpeg series as on
+Windows, `ffmpeg-android-0001`, the mpv patches, the FreeType, zlib-ng and libunibreak backports), `pruefung/` (the
+checks of the finished library and the tests of `ffmpeg-android-0001`), `build-offline-android.sh`, `README.md`,
+`notes.md` (checksums of the built files, source trees, result of the rebuild) and `SHA256SUMS`.
+
+**Rebuilding:** Linux x86-64 (tested on Ubuntu 24.04, WSL2). Download the Android NDK r28c
+(`android-ndk-r28c-linux.zip`, 28.2.13676358, 722 261 334 bytes, SHA-256
+`dfb20d396df28ca02a8c708314b814a4d961dc9074f9a161932746f815aa552f`) from https://dl.google.com/android/repository/ –
+it is not included because of its licence. Then in the unpacked folder:
+
+    NDK=/path/to/android-ndk-r28c bash build-offline-android.sh
+
+It checks `SHA256SUMS`, builds without network access (`unshare -rn`) and stops if a source tree after the patches
+differs from the expected one. Result in `out/<abi>/`. Same caveat as on Windows: not bit-identical (build folder),
+same sources, same switches.
+
+**Replacing libmpv.so in visiv:** `libmpv.so` is a separate, uncompressed file in the app package
+(`lib/<abi>/libmpv.so`). Take the APK from your device (`adb shell pm path tv.visiv.app`, then `adb pull`) or build a
+universal APK from the app bundle with `bundletool build-apks --mode=universal`; replace `lib/<abi>/libmpv.so` with your
+version (same ABI, exporting the same `mpv_*` functions including `mpv_lavc_set_java_vm`, linked for 16 KB pages);
+align with `zipalign -P 16 -f 4`, sign with your own key (`apksigner sign`), uninstall the Google Play version and
+install yours (`adb install`). Whatever is bound to the version signed by Google Play (purchases through Google Play,
+Play Integrity) does not work with a version signed by you.
+
 ## Licences
 
 The components keep their own licences (LGPL-2.1+/LGPL-3.0+ for mpv, FFmpeg, libplacebo, FriBidi, libiconv,
 uchardet; MIT, BSD, ISC, zlib, Apache-2.0 and others for the rest – see each archive and the licence page in visiv).
-The combination `libmpv-2.dll` is distributed under the GNU LGPL version 3 or later. No GPL-only or non-free
-component is included.
+The combination `libmpv-2.dll` – and on Android `libmpv.so` – is distributed under the GNU LGPL version 3 or later.
+No GPL-only or non-free component is included. On Android the statically linked C++ runtime of the NDK (libc++) is
+under Apache-2.0 with LLVM exception.
 
 ---
 
-**Deutsch:** Dieses Repository enthält den vollständigen Quellcode der Bibliothek `libmpv-2.dll` (mpv, FFmpeg und
-weitere Bausteine, LGPL-3.0), die visiv von der nnexd GmbH mitliefert – samt Änderungen, Bau-Rezept und einem Skript,
-das die DLL ohne Internet nachbaut. Das Angebot gilt mindestens drei Jahre ab der letzten Auslieferung der jeweiligen
+**Deutsch:** Dieses Repository enthält den vollständigen Quellcode der Bibliothek `libmpv-2.dll` (Windows) bzw.
+`libmpv.so` (Android) (mpv, FFmpeg und weitere Bausteine, LGPL-3.0), die visiv von der nnexd GmbH mitliefert – samt
+Änderungen, Bau-Rezept und einem Skript, das die Bibliothek ohne Internet nachbaut. Das Angebot gilt mindestens drei Jahre ab der letzten Auslieferung der jeweiligen
 visiv-Version. Fragen: support@visiv.tv
 
 **Achtung beim Nachbau:** immer einen neuen, leeren Ordner angeben (z. B. `~/visiv-libmpv-rebuild`). `build-offline.sh`

@@ -1,7 +1,7 @@
 From d89595fa98c831ad4db4794f0357b8a9d68e4965 Mon Sep 17 00:00:00 2001
 From: mpvbuild <mpvbuild@localhost>
 Date: Sun, 8 Nov 2026 12:51:50 +0100
-Subject: [PATCH 10/11] visiv: zweiter Neubau vor dem Flight 1.1.0 (08.11.2026)
+Subject: [PATCH 10/14] visiv: zweiter Neubau vor dem Flight 1.1.0 (08.11.2026)
  - FFmpeg-Sicherheits-Rueckports 0012-0017 (Fable F-L), 0011 gehaertet,
  fribidi v1.0.18 / lcms2 2.20 / brotli v1.2.1 / fast_float v8.3.3 auf
  Release-Tags
