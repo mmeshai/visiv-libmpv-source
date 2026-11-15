@@ -112,9 +112,9 @@ patch series** as the Windows DLL of the same date, without the Windows parts, p
 
 | visiv for Android | libmpv.so | Download (release) |
 |---|---|---|
-| from the first version | mpv 0.41.0 and FFmpeg 8.1 with the same backports as the Windows build of 2026-11-14, OpenSSL 3.5.9, NDK r28c, built 2026-11-14 | [`libmpv-android-20261114-v0.41.0`](../../releases/tag/libmpv-android-20261114-v0.41.0) |
+| from the first version | mpv 0.41.0 and FFmpeg 8.1 with the same backports as the Windows build of 2026-11-14, OpenSSL 3.5.9, NDK r28c, built 2026-11-14 | `libmpv-android-20261114-v0.41.0` – follows (published here before the first Android version of visiv is released) |
 
-SHA-256 of the shipped files (release `libmpv-android-20261114-v0.41.0`):
+SHA-256 of the files that the first Android version will ship (release `libmpv-android-20261114-v0.41.0`, follows):
 
 | File | SHA-256 | Bytes |
 |---|---|---|
